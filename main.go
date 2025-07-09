@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"strings"
@@ -30,20 +31,21 @@ func main() {
 func handleConnection(conn net.Conn) {
 	// Bağlantı kapatılmalı – defer kullanıyoruz
 	defer conn.Close()
+	reader := bufio.NewReader(conn)
+	message, err := reader.ReadString('\n')
 
-	// 1024 byte'a kadar oku
-	buffer := make([]byte, 1024)
-	n, err := conn.Read(buffer)
 	if err != nil {
-		fmt.Println("Okuma hatası:", err)
+		fmt.Println("zort")
 		return
 	}
 
-	request := string(buffer[:n]) + string(buffer[:n])
-	fmt.Println("Gelen istek:\n", request)
+	// fmt.Printf("Received: %s", string(message))
+
+	// request := string(buffer[:n]) + string(buffer[:n])
+	fmt.Println("Gelen istek:\n", message)
 
 	// Sadece GET isteği ise cevap verelim (isteğe bağlı filtre)
-	if strings.HasPrefix(request, "GET") {
+	if strings.HasPrefix(message, "GET") {
 		response := "HTTP/1.1 200 OK\r\n" +
 			"Content-Type: text/html\r\n" +
 			"\r\n" +
