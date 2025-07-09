@@ -3,53 +3,51 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
-// defer en son çalıştırılır, LIFO
-// go ise arkaplanda çalıştırılır
-
 func main() {
-	// Listen for incoming connections
-	listener, err := net.Listen("tcp", "0.0.0.0:8080")
+	// TCP sunucusunu 8080 portunda başlat
+	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		panic(err)
 	}
-	defer listener.Close()
+	fmt.Println("Sunucu 8080 portunda dinleniyor...")
 
-	fmt.Println("Server is listening on port 8080")
-
+	// Sonsuz döngüde gelen bağlantıları dinle
 	for {
-		// Accept incoming connections
-		conn, err := listener.Accept()
-		fmt.Println("Yeni bağlantı")
-
+		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("Bağlantı hatası:", err)
 			continue
 		}
 
-		// Handle client connection in a goroutine
-		go handleClient(conn)
+		// Her bağlantıyı ayrı bir goroutine'de işle
+		go handleConnection(conn)
 	}
-
 }
 
-func handleClient(conn net.Conn) {
-	// defer
+func handleConnection(conn net.Conn) {
+	// Bağlantı kapatılmalı – defer kullanıyoruz
 	defer conn.Close()
 
-	conn.Write([]byte("HTTP/1.1 200 OK\n\n" +
-		"<html><body><img src='https://upload.wikimedia.org/wikipedia/tr/7/72/Kylesapkasiz.jpg'/></body></html>"))
-	// if err != nil {
-	// 	fmt.Printf("err.Error(): %v\n", err.Error())
+	// 1024 byte'a kadar oku
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		fmt.Println("Okuma hatası:", err)
+		return
+	}
 
-	// }
-	// conn.Close()
+	request := string(buffer[:n]) + string(buffer[:n])
+	fmt.Println("Gelen istek:\n", request)
 
-	// Read and process data from the client
-	// ...
-
-	// Write data back to the client
-	// ...
+	// Sadece GET isteği ise cevap verelim (isteğe bağlı filtre)
+	if strings.HasPrefix(request, "GET") {
+		response := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/html\r\n" +
+			"\r\n" +
+			"<html><body><img src='https://a1cf74336522e87f135f-2f21ace9a6cf0052456644b80fa06d4f.ssl.cf2.rackcdn.com/images/characters/large/800/Kyle-Broflovski.South-Park.webp'/></body></html>"
+		conn.Write([]byte(response))
+	}
 }
