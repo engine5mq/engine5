@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// Listen for incoming connections
-	listener, err := net.Listen("tcp", "localhost:8080")
+	listener, err := net.Listen("tcp", "0.0.0.0:8080")
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -32,19 +32,19 @@ func main() {
 		// Handle client connection in a goroutine
 		go handleClient(conn)
 	}
+
 }
 
 func handleClient(conn net.Conn) {
+	// defer
 	defer conn.Close()
 
-	go conn.Write([]byte("HTTP/1.1 200 OK\n" +
-		"Date: Sun, 29 Apr 2024 12:00:00 GMT\n" +
-		"Server: Saygex\n" +
-		"Content-Type: text/html; charset=UTF-8\n" +
-		"Content-Length: 48\n" +
-		"Set-Cookie: sessionToken=abc123; Expires=Wed, 09 Jun 2024 10:18:14 GMT; HttpOnly\n" +
-		"Connection: close\n" +
-		"anan"))
+	conn.Write([]byte("HTTP/1.1 200 OK\n\n" +
+		"<html><body><img src='https://upload.wikimedia.org/wikipedia/tr/7/72/Kylesapkasiz.jpg'/></body></html>"))
+	// if err != nil {
+	// 	fmt.Printf("err.Error(): %v\n", err.Error())
+
+	// }
 	// conn.Close()
 
 	// Read and process data from the client
