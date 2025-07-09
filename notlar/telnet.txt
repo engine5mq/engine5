@@ -1,0 +1,14 @@
+➜  ~ telnet localhost 8080
+Trying ::1...
+Connected to localhost.
+Escape character is '^]'.
+hi
+Asıl sana hi
+nasılsın
+Asıl sana nsasılsın
+siktir git
+Asıl sana siktir git
+amk
+Asıl sana amk
+geber
+Connection closed by foreign host.
