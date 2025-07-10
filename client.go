@@ -12,13 +12,19 @@ import (
 // }
 
 type ConnectedClient struct {
-	connection net.Conn
-	died       bool
+	instanceName      string
+	connection        net.Conn
+	died              bool
+	listeningSubjects []string
 }
 
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
 	connCl.died = false
+}
+
+func (connCl *ConnectedClient) Listen(subjectName string) {
+	connCl.listeningSubjects = append(connCl.listeningSubjects, subjectName)
 }
 
 func (connCl ConnectedClient) Read() string {
