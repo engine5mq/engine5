@@ -21,6 +21,10 @@ type ConnectedClient struct {
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
 	connCl.died = false
+	instanceName := waitAndRead(connCl.connection)
+	if instanceName == "" {
+		instanceName = uu
+	}
 }
 
 func (connCl *ConnectedClient) Listen(subjectName string) {
@@ -29,17 +33,23 @@ func (connCl *ConnectedClient) Listen(subjectName string) {
 
 func (connCl ConnectedClient) Read() string {
 	if connCl.connection != nil && !connCl.died {
-		reader := bufio.NewReader(connCl.connection)
-		message, err := reader.ReadString('\n')
+		return waitAndRead(connCl.connection)
 
-		if err != nil {
-			fmt.Println("zort")
-			return "HATA"
-		}
-
-		return string(message)
 	}
 	return "connCl.connection != nil && !connCl.died SAĞLANMIYOR"
+}
+
+func waitAndRead(connCl net.Conn) string {
+	reader := bufio.NewReader(connCl)
+	message, err := reader.ReadString('\n')
+
+	if err != nil {
+		fmt.Println("zort")
+		return "HATA"
+	}
+
+	return string(message)
+
 }
 
 func (connCl ConnectedClient) Write(str string) {
