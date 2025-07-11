@@ -1,0 +1,26 @@
+CONNECT 
+{
+    "command": "CONNECT",
+    "instanceId": "TELNET1"
+}
+
+LISTEN EVENT 
+
+{
+    "command": "LISTEN",
+    "subject": "USER_ADDED"
+}
+
+{
+    "command": "LISTEN",
+    "subject": "USER_CHANGED"
+}
+
+
+SEND EVENT
+
+{
+    "command": "EVENT",
+    "subject": "USER_CHANGED",
+    "content": "Kyle Broflovski, South Park'ın Yahudi karakteri. Matt Stone tarafından seslendirilmektedir. Saçları Matt Stone'un saçlarına benzetilmek istenmiştir, zaten Kyle karakteri Stone'un çocukluğu baz alınarak oluşturulmuş bir karakterdir. Çizgi filmdeki dört ana karakterden biridir."
+}

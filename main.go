@@ -3,45 +3,48 @@ package main
 import (
 	"fmt"
 	"net"
-	"strings"
-	"unicode"
 )
 
 func main() {
+	// a, b := "anan", "anan"
+	// if a == b {
+	// 	println("eşitler")
+	// } else {
+	// 	println("eşit değiller")
+
+	// }
+	// return
 	// TCP sunucusunu 8080 portunda başlat
 	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Sunucu 8080 portunda dinleniyor...")
+	fmt.Println("Engine5 starting")
+	fmt.Println("Listening on 8080")
 
-	// Sonsuz döngüde gelen bağlantıları dinle
+	mainOperato := QueueOperator{
+		instances: []*ConnectedClient{},
+		messages:  []*Message{},
+	}
+	go mainOperato.LoopMessages()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("Bağlantı hatası:", err)
+			fmt.Println("Connection Error: ", err)
 			continue
 		}
 
-		// Her bağlantıyı ayrı bir goroutine'de işle
-		go handleConnection(conn)
+		go handleConnection(conn, &mainOperato)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, op *QueueOperator) {
 	var connCl = ConnectedClient{}
-	connCl.SetConnection(conn)
 	defer connCl.Die()
-
-	for {
-		gelen1 := connCl.Read()
-		if strings.HasPrefix(strings.ToUpperSpecial(unicode.TurkishCase, gelen1), "GEBER") {
-			connCl.Die()
-			break
-		} else {
-			connCl.Write("Asıl sana " + gelen1)
-		}
-	}
+	connCl.SetConnection(conn)
+	op.addConnectedClient(&connCl)
+	go connCl.MainLoop()
+	// defer connCl.Die()
 
 	// Bağlantı kapatılmalı – defer kullanıyoruz
 	// defer conn.Close()
