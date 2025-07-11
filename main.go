@@ -40,7 +40,7 @@ func main() {
 
 func handleConnection(conn net.Conn, op *QueueOperator) {
 	var connCl = ConnectedClient{}
-	defer connCl.Die()
+	// defer connCl.Die()
 	connCl.SetConnection(conn)
 	op.addConnectedClient(&connCl)
 	go connCl.MainLoop()
