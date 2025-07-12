@@ -24,13 +24,13 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
 	connCl.died = false
 	payload := connCl.readPayload()
-	if CtConnect == payload.command && payload.instanceId != "" {
-		connCl.instanceName = payload.instanceId
+	if CtConnect == payload.Command && payload.InstanceId != "" {
+		connCl.instanceName = payload.InstanceId
 	} else {
 		connCl.instanceName = uuid.NewString()
 	}
 
-	backPayload := Payload{command: CtConnectSuccess, instanceId: connCl.instanceName}
+	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName}
 	connCl.Write(backPayload)
 }
 
@@ -48,11 +48,11 @@ func (connCl *ConnectedClient) MainLoop() {
 	defer connCl.Die()
 	for {
 		pl := connCl.readPayload()
-		switch pl.command {
+		switch pl.Command {
 		case CtClose:
 			connCl.Die()
 		case CtListen:
-			connCl.listeningSubjects = append(connCl.listeningSubjects, pl.subject)
+			connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
 		case CtEvent:
 			connCl.operator.addMessage(MessageFromPayload(pl))
 			// case CtRequest:
@@ -89,8 +89,11 @@ func waitAndRead(connCl net.Conn) ([]byte, error) {
 	// 		if err == io.EOF {
 	// 			break
 	// 		} else {
-	// 			panic(err)
-	// 		}
+	// 			panic(err),,,,,,,
+	// 			panic(err),,,,,,,
+	// 			panic(err),,,,,,,
+	// 			panic(err),,,,,,,
+	// 		},,,,
 	// 	}
 
 	// }

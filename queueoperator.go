@@ -37,10 +37,10 @@ func (op *QueueOperator) LoopMessages() {
 					hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
 					if hasSubject {
 						pl := Payload{
-							command:   msg.commandType,
-							content:   msg.content,
-							subject:   msg.targetSubjectName,
-							messageId: msg.id,
+							Command:   msg.commandType,
+							Content:   msg.content,
+							Subject:   msg.targetSubjectName,
+							MessageId: msg.id,
 						}
 						instance.Write(pl)
 					}

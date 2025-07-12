@@ -18,10 +18,10 @@ type Message struct {
 
 func MessageFromPayload(pl Payload) *Message {
 	return &Message{
-		content:           pl.content,
+		content:           pl.Content,
 		id:                uuid.NewString(),
-		targetSubjectName: pl.subject,
-		commandType:       pl.command,
+		targetSubjectName: pl.Subject,
+		commandType:       pl.Command,
 		status:            MsgOpCreated,
 	}
 }
