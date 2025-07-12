@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+
+	"github.com/shamaton/msgpack"
 )
 
 const (
@@ -16,11 +18,11 @@ const (
 )
 
 type Payload struct {
-	Command    string `json:"command"`
-	Content    string `json:"content"`
-	Subject    string `json:"subject"`
-	InstanceId string `json:"instanceId"`
-	MessageId  string `json:"messageId"`
+	command    string `json:"command"`
+	content    string `json:"content"`
+	subject    string `json:"subject"`
+	instanceId string `json:"instanceId"`
+	messageId  string `json:"messageId"`
 }
 
 func (p Payload) toJson() (string, error) {
@@ -40,4 +42,26 @@ func parsePayload(jsonString string) (p Payload, e error) {
 	}
 
 	return person, nil
+}
+
+func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
+	msgpak = msgpak[0 : len(msgpak)-1]
+	var person Payload
+
+	err := msgpack.Unmarshal(msgpak, &person)
+	if err != nil {
+		return person, err
+	}
+
+	return person, nil
+}
+
+func (person *Payload) toMsgPak() (p []byte, e error) {
+
+	data, err := msgpack.Marshal(person)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
