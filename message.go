@@ -1,6 +1,10 @@
 package main
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 const (
 	MsgOpCreated    = "CREATED"
@@ -14,6 +18,8 @@ type Message struct {
 	targetSubjectName string
 	commandType       string
 	status            string
+	createdTime       time.Time
+	lastOperationTime time.Time
 }
 
 func MessageFromPayload(pl Payload) *Message {
@@ -23,5 +29,7 @@ func MessageFromPayload(pl Payload) *Message {
 		targetSubjectName: pl.Subject,
 		commandType:       pl.Command,
 		status:            MsgOpCreated,
+		createdTime:       time.Now(),
+		lastOperationTime: time.Now(),
 	}
 }
