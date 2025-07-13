@@ -1,5 +1,5 @@
-- [ ] JSON => MessagePack
-- [ ] Mesaj listesi => Bekleyen Listesi / Gönderilen listesi
+- [x] JSON => MessagePack
+- [x] Mesaj listesi => Bekleyen Listesi / Gönderilen listesi
 - [ ] İstek / yanıtlama
 - [ ] "Listen" keyword zaten ekliyse ekleme!
 - [ ] Instance Yönetimi
