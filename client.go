@@ -13,6 +13,7 @@ type ConnectedClient struct {
 	died              bool
 	listeningSubjects []string
 	operator          *QueueOperator
+	writing           bool
 }
 
 func (connCl *ConnectedClient) SetOperator(operator *QueueOperator) {
@@ -22,6 +23,7 @@ func (connCl *ConnectedClient) SetOperator(operator *QueueOperator) {
 
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
+	connCl.writing = false
 	// payload := connCl.readPayload()
 
 }
@@ -137,19 +139,36 @@ func waitAndRead(connCl net.Conn) ([]byte, error) {
 
 }
 
-func (connCl ConnectedClient) WriteStr(str string) {
+func (connCl *ConnectedClient) WriteStr(str string) {
 	if connCl.connection != nil && !connCl.died {
+		hold(connCl)
 		connCl.connection.Write([]byte(str))
+		release(connCl)
 	}
+}
+
+func release(connCl *ConnectedClient) {
+	connCl.writing = false
+}
+
+func hold(connCl *ConnectedClient) {
+	for {
+		if !connCl.writing {
+			break
+		}
+	}
+	connCl.writing = true
 }
 
 func (connCl ConnectedClient) Write(pl Payload) {
 	if connCl.connection != nil && !connCl.died {
+		hold(&connCl)
 		json, err := pl.toMsgPak()
 		if err != nil {
 			println("HATA ", err)
 		}
-		connCl.connection.Write(json)
+		connCl.connection.Write(append(json, 4))
+		release(&connCl)
 	}
 }
 
