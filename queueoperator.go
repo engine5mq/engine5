@@ -1,10 +1,14 @@
 package main
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 type QueueOperator struct {
 	instances []*ConnectedClient
-	messages  []*Message
+	waiting   []*Message
+	sent      []*Message
 }
 
 func (op *QueueOperator) addConnectedClient(client *ConnectedClient) {
@@ -24,29 +28,46 @@ func (op *QueueOperator) removeConnectedClient(clientId string) {
 }
 
 func (op *QueueOperator) addMessage(msg *Message) {
-	op.messages = append(op.messages, msg)
+	op.waiting = append(op.waiting, msg)
+	go op.LoopMessages()
 }
 
 func (op *QueueOperator) LoopMessages() {
 	for {
-		for messageIndex := 0; messageIndex < len(op.messages); messageIndex++ {
-			msg := op.messages[messageIndex]
+
+		waitingLength := len(op.waiting)
+		if waitingLength == 0 {
+			break
+		}
+		oldWaitingListindp := make([]*Message, waitingLength)
+		copy(oldWaitingListindp, op.waiting)
+
+		sent := []*Message{}
+		failed := []*Message{}
+		for messageIndex := 0; messageIndex < len(oldWaitingListindp); messageIndex++ {
+			msg := oldWaitingListindp[messageIndex]
 			if msg.status != MsgOpOk {
 				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 					instance := op.instances[instanceIndex]
 					hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
 					if hasSubject {
 						pl := Payload{
-							Command:   msg.commandType,
-							Content:   msg.content,
-							Subject:   msg.targetSubjectName,
-							MessageId: msg.id,
+							Command:           msg.commandType,
+							Content:           msg.content,
+							Subject:           msg.targetSubjectName,
+							MessageId:         msg.id,
+							CreatedTime:       msg.createdTime.String(),
+							LastOperationTime: msg.lastOperationTime.String(),
 						}
 						instance.Write(pl)
 					}
 				}
 				msg.status = MsgOpOk
+				msg.lastOperationTime = time.Now()
+				sent = append(sent, msg)
 			}
 		}
+		op.sent = sent
+		op.waiting = failed
 	}
 }

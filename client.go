@@ -62,6 +62,9 @@ func (connCl *ConnectedClient) MainLoop() {
 			// case CtRecieved:
 			// 	//todo:
 		}
+		if connCl.died {
+			break
+		}
 	}
 
 }
@@ -99,7 +102,8 @@ func waitAndRead(connCl net.Conn) ([]byte, error) {
 	// }
 	bytels, err := reader.ReadBytes(4)
 	if err != nil {
-		panic(err)
+		// panic(err)
+		println("error: ", err)
 	}
 	return bytels, nil
 

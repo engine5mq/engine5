@@ -47,15 +47,23 @@ func parsePayload(jsonString string) (p Payload, e error) {
 }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
-	msgpak = msgpak[0 : len(msgpak)-1]
-	var person Payload
+	if len(msgpak) > 0 {
+		msgpak = msgpak[0 : len(msgpak)-1]
+		var person Payload
 
-	err := msgpack.Unmarshal(msgpak, &person)
-	if err != nil {
-		return person, err
+		err := msgpack.Unmarshal(msgpak, &person)
+		if err != nil {
+			return person, err
+		}
+
+		return person, nil
+	} else {
+		println("Cannot read data. Connection is about to be closed")
+		return Payload{
+			Command: CtClose,
+		}, nil
 	}
 
-	return person, nil
 }
 
 func (person *Payload) toMsgPak() (p []byte, e error) {
