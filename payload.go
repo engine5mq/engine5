@@ -16,11 +16,13 @@ const (
 )
 
 type Payload struct {
-	Command    string `json:"command"`
-	Content    string `json:"content"`
-	Subject    string `json:"subject"`
-	InstanceId string `json:"instanceId"`
-	MessageId  string `json:"messageId"`
+	Command           string `json:"command"`
+	Content           string `json:"content"`
+	Subject           string `json:"subject"`
+	InstanceId        string `json:"instanceId"`
+	MessageId         string `json:"messageId"`
+	CreatedTime       string `json:"createdTime"`
+	LastOperationTime string `json:"lastOperationTime"`
 }
 
 func (p Payload) toJson() (string, error) {

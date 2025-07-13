@@ -1,10 +1,10 @@
 package main
 
 type Subject struct {
-	name string
+	Name string
 }
 
 type SubjectListener struct {
-	subject Subject
-	client  ConnectedClient
+	Subject Subject
+	Client  ConnectedClient
 }
