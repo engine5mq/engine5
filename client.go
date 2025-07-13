@@ -22,8 +22,21 @@ func (connCl *ConnectedClient) SetOperator(operator *QueueOperator) {
 
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
-	connCl.died = false
-	payload := connCl.readPayload()
+	// payload := connCl.readPayload()
+
+}
+
+// func (connCl *ConnectedClient) readPayload() Payload {
+// 	byteLs, error := waitAndRead(connCl.connection)
+// 	if error != nil {
+// 		println("Hata: ", error)
+// 	}
+
+// 	payload, _ := parsePayloadMsgPack(byteLs)
+// 	return payload
+// }
+
+func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	if CtConnect == payload.Command && payload.InstanceId != "" {
 		connCl.instanceName = payload.InstanceId
 	} else {
@@ -31,41 +44,56 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	}
 
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName}
+	connCl.died = false
 	connCl.Write(backPayload)
+
 }
 
-func (connCl *ConnectedClient) readPayload() Payload {
-	byteLs, error := waitAndRead(connCl.connection)
-	if error != nil {
-		println("Hata: ", error)
-	}
+func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
+	switch pl.Command {
+	case CtConnect:
+		connCl.BeSureConnection(pl)
+	case CtClose:
+		connCl.Die()
+	case CtListen:
+		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
+	case CtEvent:
+		connCl.operator.addMessage(MessageFromPayload(pl))
 
-	payload, _ := parsePayloadMsgPack(byteLs)
-	return payload
+	}
 }
 
 func (connCl *ConnectedClient) MainLoop() {
 	defer connCl.Die()
+	reader := bufio.NewReader(connCl.connection)
+
+	bytels := []byte{}
 	for {
-		pl := connCl.readPayload()
-		switch pl.Command {
-		case CtClose:
-			connCl.Die()
-		case CtListen:
-			connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
-		case CtEvent:
-			connCl.operator.addMessage(MessageFromPayload(pl))
-			// case CtRequest:
-			// 	// todo
-			// case CtResponse:
-			// 	// todo:
-			// case CtRecieved:
-			// 	//todo:
-		}
-		if connCl.died {
+
+		byteReaded, err := reader.ReadByte()
+		if err == nil {
+			if byteReaded == 4 {
+				pl, err2 := parsePayloadMsgPack(bytels)
+				if err2 != nil {
+					println("Error while reading and waiting payload: ", err2)
+				} else {
+					connCl.ReviewPayload(pl)
+					if connCl.died {
+						break
+					}
+				}
+				bytels = []byte{}
+			} else {
+				bytels = append(bytels, byteReaded)
+
+			}
+		} else {
+			println("Error: ", err)
 			break
 		}
+
 	}
+	// pl := connCl.readPayload()
 
 }
 

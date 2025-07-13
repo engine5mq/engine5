@@ -48,7 +48,6 @@ func parsePayload(jsonString string) (p Payload, e error) {
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
 	if len(msgpak) > 0 {
-		msgpak = msgpak[0 : len(msgpak)-1]
 		var person Payload
 
 		err := msgpack.Unmarshal(msgpak, &person)
