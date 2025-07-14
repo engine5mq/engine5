@@ -2,14 +2,13 @@ package main
 
 import (
 	"slices"
-	"time"
 )
 
 type QueueOperator struct {
-	instances []*ConnectedClient
-	waiting   []*Message
-	sent      []*Message
-	isWorking bool
+	instances    []*ConnectedClient
+	waiting      []*Message
+	intermediate []*Message
+	isWorking    bool
 }
 
 func (op *QueueOperator) waitForFinish() {
@@ -39,7 +38,6 @@ func (op *QueueOperator) addConnectedClient(client *ConnectedClient) {
 
 func (op *QueueOperator) removeConnectedClient(clientId string) {
 	op.hold()
-	// currentIndex := slices.Index(op.instances, op)
 	var instances []*ConnectedClient = []*ConnectedClient{}
 	for i := 0; i < len(op.instances); i++ {
 		if op.instances[i].instanceName != clientId {
@@ -71,36 +69,31 @@ func (op *QueueOperator) LoopMessages() {
 		copy(oldWaitingListindp, op.waiting)
 		op.release()
 
-		sent := []*Message{}
+		sentNow := []*Message{}
 		failed := []*Message{}
 
 		for messageIndex := 0; messageIndex < len(oldWaitingListindp); messageIndex++ {
 			msg := oldWaitingListindp[messageIndex]
-			if msg.status != MsgOpOk {
-				op.hold()
-				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-					instance := op.instances[instanceIndex]
-					hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
-					if hasSubject {
-						pl := Payload{
-							Command:           msg.commandType,
-							Content:           msg.content,
-							Subject:           msg.targetSubjectName,
-							MessageId:         msg.id,
-							CreatedTime:       msg.createdTime.String(),
-							LastOperationTime: msg.lastOperationTime.String(),
-						}
-						instance.Write(pl)
+			op.hold()
+			for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+				instance := op.instances[instanceIndex]
+				hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
+				if hasSubject {
+					pl := Payload{
+						Command:   msg.commandType,
+						Content:   msg.content,
+						Subject:   msg.targetSubjectName,
+						MessageId: msg.id,
 					}
+					instance.Write(pl)
 				}
-				op.release()
-				msg.status = MsgOpOk
-				msg.lastOperationTime = time.Now()
-				sent = append(sent, msg)
 			}
+			op.release()
+			msg.status = MsgOpOk
+			sentNow = append(sentNow, msg)
 		}
 		op.hold()
-		op.sent = sent
+		op.intermediate = sentNow
 		op.waiting = failed
 		op.release()
 	}

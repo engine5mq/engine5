@@ -61,13 +61,17 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.Die()
 	case CtListen:
 		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
-
 		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
 	case CtEvent:
-		fmt.Println("Client " + connCl.instanceName + " sent a event: " + connCl.instanceName + " content: " + pl.Content)
-
-		connCl.operator.addMessage(MessageFromPayload(pl))
-
+		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
+		msg := MessageFromPayload(pl)
+		connCl.operator.addMessage(msg)
+		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+		// case CtRequest:
+		// 	fmt.Println("Client " + connCl.instanceName + " have a request. " + " content: " + pl.Content + ", id: " + pl.MessageId)
+		// 	msg := MessageFromPayload(pl)
+		// 	connCl.operator.addMessage(msg)
+		// 	connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 	}
 }
 
@@ -77,7 +81,7 @@ func (connCl *ConnectedClient) MainLoop() {
 
 	bytels := []byte{}
 	for {
-
+		// Gelen byteları sürekli okur. Taa ki 0x04'e kadar
 		byteReaded, err := reader.ReadByte()
 		if err == nil {
 			if byteReaded == 4 {

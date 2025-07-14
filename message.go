@@ -1,11 +1,5 @@
 package main
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 const (
 	MsgOpCreated    = "CREATED"
 	MsgOpProcessing = "PROCESSING"
@@ -18,18 +12,15 @@ type Message struct {
 	targetSubjectName string
 	commandType       string
 	status            string
-	createdTime       time.Time
-	lastOperationTime time.Time
 }
 
 func MessageFromPayload(pl Payload) *Message {
+	// todo: eğer id yoksa hata fırlat
 	return &Message{
 		content:           pl.Content,
-		id:                uuid.NewString(),
+		id:                pl.MessageId,
 		targetSubjectName: pl.Subject,
 		commandType:       pl.Command,
 		status:            MsgOpCreated,
-		createdTime:       time.Now(),
-		lastOperationTime: time.Now(),
 	}
 }

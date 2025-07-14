@@ -4,50 +4,53 @@ import (
 	"github.com/shamaton/msgpack"
 )
 
+/** DİKKAT: EĞER BU KODDA İNGLİZCE TERİMLERE TAKILIP PLAZA AĞIZI
+MUHABBETİ YAPARSANIZ TUVALET TERLİĞİNİZE SU DÖKERİM! */
+
 const (
-	CtConnect        = "CONNECT"
+	//ilk bağlandığında "connect" ile TCP bağlantısından emin olunur.
+	CtConnect = "CONNECT"
+	//"CONNECT" işlemi başarılı olursa "instanceId" ile "CONNECT_SUCCESS" dönecektir
 	CtConnectSuccess = "CONNECT_SUCCESS"
-	CtRecieved       = "RECIEVED"
-	CtEvent          = "EVENT"
-	CtRequest        = "REQUEST"
-	CtResponse       = "RESPONSE"
-	CtListen         = "LISTEN"
-	CtClose          = "CLOSE"
+	/* Client MQS'ye
+	`Content` ve `Subject` ile "EVENT" gönderir.
+	Bu, bütün Subject'i dinleyen Client'lara MessageId ile gönderilir */
+	CtEvent = "EVENT"
+	/* Event MQS tarafından alındıysa, Eventi üreten Client'a Subject ve `MessageId` ile "RECIEVED" gönderilecektir*/
+	CtRecieved = "RECIEVED"
+	// Eventi alan client Received dönecektir
+	CtApplied = "APPLIED"
+	/* Client eğer istek atacaksa Subject, Content, MessageId, InstanceId(eğer spesifik bir client'a gönderilecekse)
+	ile "REQUEST" gönderir. Aynı payload sağlanan bilgilerle sadece bir tane ilgili client'a gönderecektir*/
+	CtRequest = "REQUEST"
+	// Client "content" ve "id" ile istek gönderir
+	CtResponse = "RESPONSE"
+	// Herhangi bir "event" ya da "request" dinleneceği zaman `Subject` ile "LISTEN" gönderilir
+	CtListen = "LISTEN"
+	// Client kapanacağı anda "CLOSE" gönderir
+	CtClose = "CLOSE"
+	// Herhangi bir hata durumunda çift durumda belli koşullarla
+	CtError = "ERROR"
 )
 
-/**
-* DİKKAT: SAYI TİPİ(INTEGER) YERİNE STRİNG KULLANIN. '4' BYTE İLE AYRILIYOR ANCAK PAYLOADIN İÇİNDE 4 SAYISI OLMASI (INTEGER - FIXINT) YANLIŞ KESİLMESİNE NEDEN OLUYOR
-* USE STRING INSTEAD OF NUMBER TYPE. IT IS SEPARATED BY '4' BUT THE PRESENCE OF THE NUMBER 4 (INTEGER - FIXINT) IN THE PAYLOAD CAUSES IT TO BE TRUNCTURED WRONGLY
- */
+/*
+*
+
+	Tcp iletişimi sağlandığında bu payload kullanılacaktır.
+	Payload, gönderilmeden önce MessagePack ile byte dizisi haline getirilir, ve ayırımı kolay olması açısından sonuna 0x04
+
+	DİKKAT: SAYI TİPİ(INTEGER) YERİNE STRİNG KULLANIN. 0x04 BYTE İLE AYRILIYOR ANCAK PAYLOADIN İÇİNDE 4 SAYISI OLMASI (INTEGER - FIXINT) YANLIŞ KESİLMESİNE NEDEN OLUYOR
+	USE STRING INSTEAD OF NUMBER TYPE. IT IS SEPARATED BY '4' BUT THE PRESENCE OF THE NUMBER 4 (INTEGER - FIXINT) IN THE PAYLOAD CAUSES IT TO BE TRUNCTURED WRONGLY
+*/
 type Payload struct {
-	Command           string `json:"command"`
-	Content           string `json:"content"`
-	Subject           string `json:"subject"`
-	InstanceId        string `json:"instanceId"`
-	MessageId         string `json:"messageId"`
-	CreatedTime       string `json:"createdTime"`
-	LastOperationTime string `json:"lastOperationTime"`
-	// Number            string `json:"number"`
+	Command             string `json:"command"`
+	Content             string `json:"content"`
+	Subject             string `json:"subject"`
+	InstanceId          string `json:"instanceId"`
+	MessageId           string `json:"messageId"`
+	ResponseOfMessageId string `json:"responseOfMessageId"`
+	Completed           bool   `json:"completed"`
 }
-
-// func (p Payload) toJson() (string, error) {
-// 	jsonBytes, err := json.Marshal(&p)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	return string(jsonBytes[:]), err
-// }
-
-// func parsePayload(jsonString string) (p Payload, e error) {
-// 	var person Payload
-
-// 	err := json.Unmarshal([]byte(jsonString), &person)
-// 	if err != nil {
-// 		return person, err
-// 	}
-
-// 	return person, nil
-// }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
 	if len(msgpak) > 0 {
