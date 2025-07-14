@@ -4,11 +4,16 @@ import (
 	"slices"
 )
 
+type OngoingRequest struct {
+	targetInstance *ConnectedClient
+}
+
 type QueueOperator struct {
-	instances    []*ConnectedClient
-	waiting      []*Message
-	intermediate []*Message
-	isWorking    bool
+	instances      []*ConnectedClient
+	waiting        []*Message
+	intermediate   []*Message
+	isWorking      bool
+	ongoingRequest map[string]*OngoingRequest
 }
 
 func (op *QueueOperator) waitForFinish() {
@@ -74,21 +79,18 @@ func (op *QueueOperator) LoopMessages() {
 
 		for messageIndex := 0; messageIndex < len(oldWaitingListindp); messageIndex++ {
 			msg := oldWaitingListindp[messageIndex]
-			op.hold()
-			for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-				instance := op.instances[instanceIndex]
-				hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
-				if hasSubject {
-					pl := Payload{
-						Command:   msg.commandType,
-						Content:   msg.content,
-						Subject:   msg.targetSubjectName,
-						MessageId: msg.id,
-					}
-					instance.Write(pl)
-				}
+			if msg.commandType == CtEvent {
+				op.PublishEventMessage(msg)
 			}
-			op.release()
+			if msg.commandType == CtRequest {
+				if op.ongoingRequest == nil {
+					op.ongoingRequest = make(map[string]*OngoingRequest)
+				}
+				op.ongoingRequest[msg.id] = &OngoingRequest{targetInstance: }
+			}
+			if msg.commandType == CtResponse {
+
+			}
 			msg.status = MsgOpOk
 			sentNow = append(sentNow, msg)
 		}
@@ -97,4 +99,22 @@ func (op *QueueOperator) LoopMessages() {
 		op.waiting = failed
 		op.release()
 	}
+}
+
+func (op *QueueOperator) PublishEventMessage(msg *Message) {
+	op.hold()
+	for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+		instance := op.instances[instanceIndex]
+		hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
+		if hasSubject {
+			pl := Payload{
+				Command:   msg.commandType,
+				Content:   msg.content,
+				Subject:   msg.targetSubjectName,
+				MessageId: msg.id,
+			}
+			instance.Write(pl)
+		}
+	}
+	op.release()
 }

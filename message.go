@@ -12,9 +12,11 @@ type Message struct {
 	targetSubjectName string
 	commandType       string
 	status            string
+	fromInstanceName  string
+	toInstanceName    string
 }
 
-func MessageFromPayload(pl Payload) *Message {
+func MessageFromPayload(pl Payload, cc ConnectedClient) *Message {
 	// todo: eğer id yoksa hata fırlat
 	return &Message{
 		content:           pl.Content,
@@ -22,5 +24,7 @@ func MessageFromPayload(pl Payload) *Message {
 		targetSubjectName: pl.Subject,
 		commandType:       pl.Command,
 		status:            MsgOpCreated,
+		fromInstanceName:  cc.instanceName,
+		toInstanceName:    cc.instanceName,
 	}
 }
