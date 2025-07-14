@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-
 	"github.com/shamaton/msgpack"
 )
 
@@ -17,6 +15,10 @@ const (
 	CtClose          = "CLOSE"
 )
 
+/**
+* DİKKAT: SAYI TİPİ(INTEGER) YERİNE STRİNG KULLANIN. '4' BYTE İLE AYRILIYOR ANCAK PAYLOADIN İÇİNDE 4 SAYISI OLMASI (INTEGER - FIXINT) YANLIŞ KESİLMESİNE NEDEN OLUYOR
+* USE STRING INSTEAD OF NUMBER TYPE. IT IS SEPARATED BY '4' BUT THE PRESENCE OF THE NUMBER 4 (INTEGER - FIXINT) IN THE PAYLOAD CAUSES IT TO BE TRUNCTURED WRONGLY
+ */
 type Payload struct {
 	Command           string `json:"command"`
 	Content           string `json:"content"`
@@ -25,26 +27,27 @@ type Payload struct {
 	MessageId         string `json:"messageId"`
 	CreatedTime       string `json:"createdTime"`
 	LastOperationTime string `json:"lastOperationTime"`
+	// Number            string `json:"number"`
 }
 
-func (p Payload) toJson() (string, error) {
-	jsonBytes, err := json.Marshal(&p)
-	if err != nil {
-		return "", err
-	}
-	return string(jsonBytes[:]), err
-}
+// func (p Payload) toJson() (string, error) {
+// 	jsonBytes, err := json.Marshal(&p)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return string(jsonBytes[:]), err
+// }
 
-func parsePayload(jsonString string) (p Payload, e error) {
-	var person Payload
+// func parsePayload(jsonString string) (p Payload, e error) {
+// 	var person Payload
 
-	err := json.Unmarshal([]byte(jsonString), &person)
-	if err != nil {
-		return person, err
-	}
+// 	err := json.Unmarshal([]byte(jsonString), &person)
+// 	if err != nil {
+// 		return person, err
+// 	}
 
-	return person, nil
-}
+// 	return person, nil
+// }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
 	if len(msgpak) > 0 {

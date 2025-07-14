@@ -24,13 +24,13 @@ func main() {
 			fmt.Println("Connection Error: ", err)
 			continue
 		}
-
+		fmt.Println("Incoming connection")
 		go handleConnection(conn, &mainOperato)
 	}
 }
 
 func handleConnection(conn net.Conn, op *QueueOperator) {
-	var connCl = ConnectedClient{}
+	var connCl = ConnectedClient{died: true}
 	// defer connCl.Die()
 	connCl.SetConnection(conn)
 	op.addConnectedClient(&connCl)

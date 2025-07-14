@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName}
 	connCl.died = false
 	connCl.Write(backPayload)
-
+	fmt.Println("Connected client's instance name is: " + connCl.instanceName)
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
@@ -56,10 +57,15 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	case CtConnect:
 		connCl.BeSureConnection(pl)
 	case CtClose:
+		fmt.Println("Client " + connCl.instanceName + " is closing")
 		connCl.Die()
 	case CtListen:
+		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
+
 		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
 	case CtEvent:
+		fmt.Println("Client " + connCl.instanceName + " sent a event: " + connCl.instanceName + " content: " + pl.Content)
+
 		connCl.operator.addMessage(MessageFromPayload(pl))
 
 	}
@@ -177,5 +183,7 @@ func (connCl *ConnectedClient) Die() {
 		defer connCl.connection.Close()
 		defer connCl.operator.removeConnectedClient(connCl.instanceName)
 		connCl.died = true
+		fmt.Println("Client " + connCl.instanceName + " has been closed")
+
 	}
 }
