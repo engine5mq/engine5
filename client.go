@@ -64,7 +64,7 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
-		msg := MessageFromPayload(pl)
+		msg := MessageFromPayload(pl, *connCl)
 		connCl.operator.addMessage(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 		// case CtRequest:

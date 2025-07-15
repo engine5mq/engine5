@@ -83,10 +83,10 @@ func (op *QueueOperator) LoopMessages() {
 				op.PublishEventMessage(msg)
 			}
 			if msg.commandType == CtRequest {
-				if op.ongoingRequest == nil {
-					op.ongoingRequest = make(map[string]*OngoingRequest)
-				}
-				op.ongoingRequest[msg.id] = &OngoingRequest{targetInstance: }
+				// if op.ongoingRequest == nil {
+				// 	op.ongoingRequest = make(map[string]*OngoingRequest)
+				// }
+				// op.ongoingRequest[msg.id] = &OngoingRequest{targetInstance: }
 			}
 			if msg.commandType == CtResponse {
 
@@ -117,4 +117,8 @@ func (op *QueueOperator) PublishEventMessage(msg *Message) {
 		}
 	}
 	op.release()
+}
+
+func (op *QueueOperator) SendRequestToClient(msg *Message) {
+
 }
