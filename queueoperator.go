@@ -1,7 +1,5 @@
 package main
 
-import "reflect"
-
 type OngoingRequest struct {
 	targetInstance *ConnectedClient
 	requestMessage *Message
@@ -33,15 +31,32 @@ func (op *QueueOperator) hold() {
 func (op *QueueOperator) addRequest(message *Message, clientRequesting *ConnectedClient) {
 
 	op.ongoingRequests[message.id] = &OngoingRequest{targetInstance: clientRequesting, requestMessage: message}
+
+	for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+		instance := op.instances[instanceIndex]
+		hasSubject := instance.IsListening(message.targetSubjectName)
+		if hasSubject {
+			pl := Payload{
+				Command:   CtRequest,
+				Content:   message.content,
+				MessageId: message.id,
+				Subject:   message.targetSubjectName,
+			}
+			instance.Write(pl)
+			break
+
+		}
+	}
 }
 
 func (op *QueueOperator) respondRequest(messageIncoming *Message) {
 	if op.ongoingRequests[messageIncoming.ResponseOfMessageId] != nil {
 		ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
 		ongoingReq.targetInstance.Write(Payload{
-			Command: CtResponse,
-			Content: messageIncoming.content,
-			Subject: messageIncoming.targetSubjectName,
+			Command:             CtResponse,
+			Content:             messageIncoming.content,
+			Subject:             messageIncoming.targetSubjectName,
+			ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
 		})
 		op.ongoingRequests[messageIncoming.ResponseOfMessageId] = nil
 	}
@@ -84,16 +99,26 @@ func (op *QueueOperator) addEvent(msg *Message) {
 	go op.LoopMessages()
 }
 
+// func (op *QueueOperator) loopRequests() {
+
+// 	requestWaitingMessageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
+
+// 	for i := 0; i < len(requestWaitingMessageIds); i++ {
+// 		requestMessageId := requestWaitingMessageIds[i]
+// 		orq := op.ongoingRequests[requestMessageId.String()]
+
+// 	}
+// }
+
 func (op *QueueOperator) LoopMessages() {
-	for {
-		op.hold()
 
-		waitingLength := len(op.waiting)
-		if waitingLength == 0 {
-			op.release()
-			break
-		}
+	op.hold()
 
+	waitingLength := len(op.waiting)
+	if waitingLength == 0 {
+		op.release()
+
+	} else {
 		oldWaitingListindp := make([]*Message, waitingLength)
 		copy(oldWaitingListindp, op.waiting)
 		op.release()
@@ -113,28 +138,8 @@ func (op *QueueOperator) LoopMessages() {
 		op.intermediate = sentNow
 		op.waiting = failed
 		op.release()
-
-		requestWaitingMessageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
-
-		for i := 0; i < len(requestWaitingMessageIds); i++ {
-			requestMessageId := requestWaitingMessageIds[i]
-			orq := op.ongoingRequests[requestMessageId.String()]
-			for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-				instance := op.instances[instanceIndex]
-				hasSubject := instance.IsListening(orq.requestMessage.targetSubjectName)
-				if hasSubject {
-					pl := Payload{
-						Command:   CtRequest,
-						Content:   orq.requestMessage.content,
-						MessageId: orq.requestMessage.id,
-						Subject:   orq.requestMessage.targetSubjectName,
-					}
-					instance.Write(pl)
-				}
-			}
-		}
-
 	}
+
 }
 
 func (op *QueueOperator) PublishEventMessage(msg *Message) {
