@@ -13,9 +13,10 @@ func main() {
 	fmt.Println("Engine5 starting")
 	fmt.Println("Listening on 8080")
 	mainOperato := QueueOperator{
-		instances:    []*ConnectedClient{},
-		intermediate: []*Message{},
-		waiting:      []*Message{},
+		instances:       []*ConnectedClient{},
+		intermediate:    []*Message{},
+		waiting:         []*Message{},
+		ongoingRequests: make(map[string]*OngoingRequest),
 	}
 	go mainOperato.LoopMessages()
 	for {

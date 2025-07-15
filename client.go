@@ -66,16 +66,16 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
 		msg := MessageFromPayload(pl)
-		connCl.operator.addMessage(msg)
+		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtRequest:
 		msg := MessageFromPayload(pl)
-		connCl.operator.addMessage(msg)
+		connCl.operator.addRequest(msg, connCl)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 	case CtResponse:
 		msg := MessageFromPayload(pl)
-		connCl.operator.addMessage(msg)
+		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 		// case CtRequest:
 		// 	fmt.Println("Client " + connCl.instanceName + " have a request. " + " content: " + pl.Content + ", id: " + pl.MessageId)
