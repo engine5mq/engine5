@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"slices"
 
 	"github.com/google/uuid"
 )
@@ -64,7 +65,16 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
-		msg := MessageFromPayload(pl, *connCl)
+		msg := MessageFromPayload(pl)
+		connCl.operator.addMessage(msg)
+		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+
+	case CtRequest:
+		msg := MessageFromPayload(pl)
+		connCl.operator.addMessage(msg)
+		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+	case CtResponse:
+		msg := MessageFromPayload(pl)
 		connCl.operator.addMessage(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 		// case CtRequest:
@@ -111,6 +121,11 @@ func (connCl *ConnectedClient) MainLoop() {
 
 func (connCl *ConnectedClient) Listen(subjectName string) {
 	connCl.listeningSubjects = append(connCl.listeningSubjects, subjectName)
+}
+
+func (connCl *ConnectedClient) IsListening(subjectName string) bool {
+	hasSubject := slices.Contains(connCl.listeningSubjects, subjectName)
+	return hasSubject
 }
 
 // func (connCl ConnectedClient) Read() (string, error) {

@@ -7,24 +7,20 @@ const (
 )
 
 type Message struct {
-	content           string
-	id                string
-	targetSubjectName string
-	commandType       string
-	status            string
-	fromInstanceName  string
-	toInstanceName    string
+	content             string
+	id                  string
+	targetSubjectName   string
+	commandType         string
+	ResponseOfMessageId string
 }
 
-func MessageFromPayload(pl Payload, cc ConnectedClient) *Message {
+func MessageFromPayload(pl Payload) *Message {
 	// todo: eğer id yoksa hata fırlat
 	return &Message{
-		content:           pl.Content,
-		id:                pl.MessageId,
-		targetSubjectName: pl.Subject,
-		commandType:       pl.Command,
-		status:            MsgOpCreated,
-		fromInstanceName:  cc.instanceName,
-		toInstanceName:    cc.instanceName,
+		content:             pl.Content,
+		id:                  pl.MessageId,
+		targetSubjectName:   pl.Subject,
+		commandType:         pl.Command,
+		ResponseOfMessageId: pl.ResponseOfMessageId,
 	}
 }

@@ -1,9 +1,5 @@
 package main
 
-import (
-	"slices"
-)
-
 type OngoingRequest struct {
 	targetInstance *ConnectedClient
 }
@@ -35,6 +31,13 @@ func (op *QueueOperator) release() {
 }
 
 func (op *QueueOperator) addConnectedClient(client *ConnectedClient) {
+	op.hold()
+	op.instances = append(op.instances, client)
+	client.SetOperator(op)
+	op.release()
+}
+
+func (op *QueueOperator) findConnectedClient(client *ConnectedClient) {
 	op.hold()
 	op.instances = append(op.instances, client)
 	client.SetOperator(op)
@@ -91,7 +94,6 @@ func (op *QueueOperator) LoopMessages() {
 			if msg.commandType == CtResponse {
 
 			}
-			msg.status = MsgOpOk
 			sentNow = append(sentNow, msg)
 		}
 		op.hold()
@@ -105,7 +107,7 @@ func (op *QueueOperator) PublishEventMessage(msg *Message) {
 	op.hold()
 	for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 		instance := op.instances[instanceIndex]
-		hasSubject := slices.Contains(instance.listeningSubjects, msg.targetSubjectName)
+		hasSubject := instance.IsListening(msg.targetSubjectName)
 		if hasSubject {
 			pl := Payload{
 				Command:   msg.commandType,
@@ -120,5 +122,23 @@ func (op *QueueOperator) PublishEventMessage(msg *Message) {
 }
 
 func (op *QueueOperator) SendRequestToClient(msg *Message) {
-
+	op.hold()
+	if op.ongoingRequest == nil {
+		op.ongoingRequest = make(map[string]*OngoingRequest)
+	}
+	for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+		instance := op.instances[instanceIndex]
+		hasSubject := instance.IsListening(msg.targetSubjectName)
+		if hasSubject {
+			pl := Payload{
+				Command:   msg.commandType,
+				Content:   msg.content,
+				Subject:   msg.targetSubjectName,
+				MessageId: msg.id,
+			}
+			op.ongoingRequest[msg.id] = &OngoingRequest{targetInstance: insta}
+			instance.Write(pl)
+		}
+	}
+	op.release()
 }
