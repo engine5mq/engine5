@@ -39,7 +39,6 @@ func (op *QueueOperator) addRequest(message *Message, clientRequesting *Connecte
 }
 
 func (op *QueueOperator) respondRequest(messageIncoming *Message) {
-	op.hold()
 
 	if op.ongoingRequests[messageIncoming.ResponseOfMessageId] != nil {
 		ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
@@ -52,7 +51,6 @@ func (op *QueueOperator) respondRequest(messageIncoming *Message) {
 		delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
 	}
 
-	op.release()
 }
 
 func (op *QueueOperator) release() {
@@ -104,9 +102,11 @@ func (op *QueueOperator) addEvent(msg *Message) {
 // }
 
 func (op *QueueOperator) LoopRequests() {
-	messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
 	for {
+		op.hold()
+		messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
 		if len(messageIds) > 0 {
+
 			for i := 0; i < len(messageIds); i++ {
 				or := op.ongoingRequests[messageIds[i].String()]
 				if or != nil && or.targetInstance != nil {
@@ -134,6 +134,7 @@ func (op *QueueOperator) LoopRequests() {
 		} else {
 			break
 		}
+		op.release()
 	}
 
 }

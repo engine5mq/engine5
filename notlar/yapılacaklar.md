@@ -1,6 +1,7 @@
 - [x] JSON => MessagePack
 - [x] Mesaj listesi => Bekleyen Listesi / Gönderilen listesi
-- [ ] İstek / yanıtlama
+- [x] İstek / yanıtlama
+- [ ] Eşzamanlı yazmayı önleme ve semafor yapısı
 - [ ] "Listen" keyword zaten ekliyse ekleme!
 - [ ] Instance Yönetimi
         Map
