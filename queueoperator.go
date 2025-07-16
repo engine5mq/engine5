@@ -39,7 +39,6 @@ func (op *QueueOperator) addRequest(message *Message, clientRequesting *Connecte
 }
 
 func (op *QueueOperator) respondRequest(messageIncoming *Message) {
-	op.hold()
 
 	if op.ongoingRequests[messageIncoming.ResponseOfMessageId] != nil {
 		ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
@@ -52,7 +51,6 @@ func (op *QueueOperator) respondRequest(messageIncoming *Message) {
 		op.ongoingRequests[messageIncoming.ResponseOfMessageId] = nil
 	}
 
-	op.release()
 }
 
 func (op *QueueOperator) release() {
@@ -104,33 +102,39 @@ func (op *QueueOperator) addEvent(msg *Message) {
 // }
 
 func (op *QueueOperator) LoopRequests() {
-	messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
 	for {
+		op.hold()
+		messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
 		if len(messageIds) > 0 {
+
 			for i := 0; i < len(messageIds); i++ {
 				or := op.ongoingRequests[messageIds[i].String()]
-				message := or.requestMessage
-				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+				if or != nil {
+					message := or.requestMessage
+					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 
-					instance := op.instances[instanceIndex]
-					hasSubject := instance.IsListening(message.targetSubjectName)
-					if hasSubject {
-						pl := Payload{
-							Command:   CtRequest,
-							Content:   message.content,
-							MessageId: message.id,
-							Subject:   message.targetSubjectName,
+						instance := op.instances[instanceIndex]
+						hasSubject := instance.IsListening(message.targetSubjectName)
+						if hasSubject {
+							pl := Payload{
+								Command:   CtRequest,
+								Content:   message.content,
+								MessageId: message.id,
+								Subject:   message.targetSubjectName,
+							}
+							instance.Write(pl)
+							break
+
 						}
-						instance.Write(pl)
-						break
-
 					}
 				}
+
 			}
 
 		} else {
 			break
 		}
+		op.release()
 	}
 
 }
