@@ -10,7 +10,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Engine5 starting")
+	fmt.Println("Engine5 is being started")
 	fmt.Println("Listening on 8080")
 	mainOperato := QueueOperator{
 		instances:       []*ConnectedClient{},
@@ -19,6 +19,7 @@ func main() {
 		ongoingRequests: make(map[string]*OngoingRequest),
 	}
 	go mainOperato.LoopMessages()
+	go mainOperato.LoopRequests()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

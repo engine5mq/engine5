@@ -49,7 +49,7 @@ func (op *QueueOperator) respondRequest(messageIncoming *Message) {
 			Subject:             messageIncoming.targetSubjectName,
 			ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
 		})
-		op.ongoingRequests[messageIncoming.ResponseOfMessageId] = nil
+		delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
 	}
 
 	op.release()
@@ -109,23 +109,26 @@ func (op *QueueOperator) LoopRequests() {
 		if len(messageIds) > 0 {
 			for i := 0; i < len(messageIds); i++ {
 				or := op.ongoingRequests[messageIds[i].String()]
-				message := or.requestMessage
-				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+				if or != nil && or.targetInstance != nil {
+					message := or.requestMessage
+					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 
-					instance := op.instances[instanceIndex]
-					hasSubject := instance.IsListening(message.targetSubjectName)
-					if hasSubject {
-						pl := Payload{
-							Command:   CtRequest,
-							Content:   message.content,
-							MessageId: message.id,
-							Subject:   message.targetSubjectName,
+						instance := op.instances[instanceIndex]
+						hasSubject := instance.IsListening(message.targetSubjectName)
+						if hasSubject {
+							pl := Payload{
+								Command:   CtRequest,
+								Content:   message.content,
+								MessageId: message.id,
+								Subject:   message.targetSubjectName,
+							}
+							instance.Write(pl)
+							break
+
 						}
-						instance.Write(pl)
-						break
-
 					}
 				}
+
 			}
 
 		} else {
