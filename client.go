@@ -14,11 +14,11 @@ type ConnectedClient struct {
 	connection        net.Conn
 	died              bool
 	listeningSubjects []string
-	operator          *QueueOperator
+	operator          *MessageOperator
 	writing           bool
 }
 
-func (connCl *ConnectedClient) SetOperator(operator *QueueOperator) {
+func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {
 	connCl.operator = operator
 
 }

@@ -1,20 +1,45 @@
-package main;
+package main
 
-type voidy func void();
-var GlobalTaskQueue = make(chan func())
+import "github.com/google/uuid"
 
+type VoidMethod func()
+
+type QueueTicket struct {
+	voidMethod VoidMethod
+	completed  bool
+	id         string
+}
+
+var GlobalTaskQueue = make(chan *QueueTicket)
 
 // Worker
 func loopGlobalTaskQueue() {
-	for task := range taskQueue {
-		task()
+	for {
+		for task := range GlobalTaskQueue {
+			task.voidMethod()
+			task.completed = true
+		}
+	}
+
+}
+
+func addToGlobalTaskQueue(voidMethod VoidMethod) {
+	id := uuid.NewString()
+	ticket := QueueTicket{voidMethod: voidMethod, completed: false, id: id}
+	GlobalTaskQueue <- &ticket
+}
+
+func addAndWaitToGlobalTaskQueue(voidMethod VoidMethod) {
+	id := uuid.NewString()
+	ticket := QueueTicket{voidMethod: voidMethod, completed: false, id: id}
+	GlobalTaskQueue <- &ticket
+	for {
+		if ticket.completed {
+			break
+		}
 	}
 }
 
-func addToGlobalTaskQueue() {
-
-}
-
 // Task gönderme
-taskQueue <- func() { fmt.Println("Okuma") }
-taskQueue <- func() { fmt.Println("Yazma") }
+
+// taskQueue <- func() { fmt.Println("Yazma") }

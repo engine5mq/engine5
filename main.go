@@ -12,12 +12,13 @@ func main() {
 	}
 	fmt.Println("Engine5 is being started")
 	fmt.Println("Listening on 8080")
-	mainOperato := QueueOperator{
+	mainOperato := MessageOperator{
 		instances:       []*ConnectedClient{},
 		intermediate:    []*Message{},
 		waiting:         []*Message{},
 		ongoingRequests: make(map[string]*OngoingRequest),
 	}
+	go loopGlobalTaskQueue()
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
 	for {
@@ -31,7 +32,7 @@ func main() {
 	}
 }
 
-func handleConnection(conn net.Conn, op *QueueOperator) {
+func handleConnection(conn net.Conn, op *MessageOperator) {
 	var connCl = ConnectedClient{died: true}
 	// defer connCl.Die()
 	connCl.SetConnection(conn)
