@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -16,6 +17,7 @@ type ConnectedClient struct {
 	listeningSubjects []string
 	operator          *MessageOperator
 	writing           bool
+	writeQueue        chan []byte
 }
 
 func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {
@@ -51,8 +53,6 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	connCl.died = false
 	connCl.Write(backPayload)
 	fmt.Println("Connected client's instance name is: " + connCl.instanceName)
-	connCl.operator.LoopMessages()
-	connCl.operator.LoopRequests()
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
@@ -86,7 +86,33 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 
 }
 
-func (connCl *ConnectedClient) MainLoop() {
+func (connCl *ConnectedClient) Write(pl Payload) {
+	if connCl.connection != nil && !connCl.died {
+		addToGlobalTaskQueue(func() {
+			json, err := pl.toMsgPak()
+			if err != nil {
+				println("HATA ", err)
+			}
+			connCl.writeQueue <- json
+		})
+
+	}
+}
+
+func (connCl *ConnectedClient) WriterLoop() {
+	ct := 0
+	for {
+		for v := range connCl.writeQueue {
+			connCl.connection.Write(append(v, 4))
+			ct++
+			println("Write count: (" + connCl.instanceName + ") " + strconv.Itoa(ct))
+		}
+	}
+	// pl := connCl.readPayload()
+
+}
+
+func (connCl *ConnectedClient) ReaderLoop() {
 	defer connCl.Die()
 	reader := bufio.NewReader(connCl.connection)
 
@@ -186,29 +212,12 @@ func hold(connCl *ConnectedClient) {
 	// connCl.writing = true
 }
 
-func (connCl ConnectedClient) Write(pl Payload) {
-	if connCl.connection != nil && !connCl.died {
-		// addToGlobalTaskQueue(func() {
-
-		// })
-		hold(&connCl)
-		json, err := pl.toMsgPak()
-		if err != nil {
-			println("HATA ", err)
-		}
-		connCl.connection.Write(append(json, 4))
-		release(&connCl)
-	}
-}
-
 func (connCl *ConnectedClient) Die() {
 	if connCl.connection != nil && !connCl.died {
 
-		addToGlobalTaskQueue(func() {
-			defer connCl.connection.Close()
-			defer connCl.operator.removeConnectedClient(connCl.instanceName)
-			connCl.died = true
-			fmt.Println("Client " + connCl.instanceName + " has been closed")
-		})
+		defer connCl.connection.Close()
+		defer connCl.operator.removeConnectedClient(connCl.instanceName)
+		connCl.died = true
+		fmt.Println("Client " + connCl.instanceName + " has been closed")
 	}
 }

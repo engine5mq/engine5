@@ -33,17 +33,18 @@ func addAndWaitToGlobalTaskQueue(voidMethod VoidMethod) {
 	id := uuid.NewString()
 	ticket := QueueTicket{voidMethod: voidMethod, completed: false, id: id}
 	GlobalTaskQueue <- &ticket
-	var count = 0
+	// var count = 0
 	for {
 		if ticket.completed {
 			break
-		} else {
-			count++
-			if count > 0 && (count%1000) == 0 {
-				println("ATTENTION: A task has not been resolved because it is continuing for long")
-				break
-			}
 		}
+		// else {
+		// 	count++
+		// 	if count > 0 && (count%1000) == 0 {
+		// 		println("ATTENTION: A task has not been resolved because it is continuing for long")
+		// 		break
+		// 	}
+		// }
 
 	}
 }

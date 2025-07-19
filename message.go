@@ -14,9 +14,9 @@ type Message struct {
 	ResponseOfMessageId string
 }
 
-func MessageFromPayload(pl Payload) *Message {
+func MessageFromPayload(pl Payload) Message {
 	// todo: eğer id yoksa hata fırlat
-	return &Message{
+	return Message{
 		content:             pl.Content,
 		id:                  pl.MessageId,
 		targetSubjectName:   pl.Subject,
