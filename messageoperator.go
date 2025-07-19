@@ -11,23 +11,10 @@ type OngoingRequest struct {
 }
 
 type MessageOperator struct {
-	instances []*ConnectedClient
-	waiting   chan Message
-	// incomingRequestChannel chan Message
-	// responseChannel        chan Message
-	// intermediate []*Message
-	// isWorking       bool
+	instances       []*ConnectedClient
+	waiting         chan Message
 	ongoingRequests map[string]*OngoingRequest
 }
-
-// func (op *QueueOperator) waitForFinish() {
-// 	for {
-
-// 		if !op.isWorking {
-// 			break
-// 		}
-// 	}
-// }
 
 func (op *MessageOperator) LoopMessages() {
 	for {
@@ -161,25 +148,3 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 
 	}
 }
-
-// func (op *QueueOperator) SendRequestToClient(msg *Message) {
-// 	op.hold()
-// 	if op.ongoingRequest == nil {
-// 		op.ongoingRequest = make(map[string]*OngoingRequest)
-// 	}
-// 	for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-// 		instance := op.instances[instanceIndex]
-// 		hasSubject := instance.IsListening(msg.targetSubjectName)
-// 		if hasSubject {
-// 			pl := Payload{
-// 				Command:   msg.commandType,
-// 				Content:   msg.content,
-// 				Subject:   msg.targetSubjectName,
-// 				MessageId: msg.id,
-// 			}
-// 			op.ongoingRequest[msg.id] = &OngoingRequest{targetInstance: insta}
-// 			instance.Write(pl)
-// 		}
-// 	}
-// 	op.release()
-// }
