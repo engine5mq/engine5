@@ -13,10 +13,8 @@ func main() {
 	fmt.Println("Engine5 is being started")
 	fmt.Println("Listening on 8080")
 	mainOperato := MessageOperator{
-		instances: []*ConnectedClient{},
-		waiting:   make(chan Message),
-		// incomingRequestChannel: make(chan Message),
-		// responseChannel:        make(chan Message),
+		instances:       []*ConnectedClient{},
+		waiting:         make(chan Message),
 		ongoingRequests: make(map[string]*OngoingRequest),
 	}
 	go loopGlobalTaskQueue()

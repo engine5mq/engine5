@@ -28,19 +28,8 @@ func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
 	connCl.writing = false
-	// payload := connCl.readPayload()
 
 }
-
-// func (connCl *ConnectedClient) readPayload() Payload {
-// 	byteLs, error := waitAndRead(connCl.connection)
-// 	if error != nil {
-// 		println("Hata: ", error)
-// 	}
-
-// 	payload, _ := parsePayloadMsgPack(byteLs)
-// 	return payload
-// }
 
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	if CtConnect == payload.Command && payload.InstanceId != "" {
@@ -153,63 +142,6 @@ func (connCl *ConnectedClient) Listen(subjectName string) {
 func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 	hasSubject := slices.Contains(connCl.listeningSubjects, subjectName)
 	return hasSubject
-}
-
-// func (connCl ConnectedClient) Read() (string, error) {
-// 	if connCl.connection != nil && !connCl.died {
-// 		return waitAndReadString(connCl.connection)
-
-// 	}
-// 	return "", errors.New("connCl.connection != nil && !connCl.died SAĞLANMIYOR")
-// }
-
-func waitAndRead(connCl net.Conn) ([]byte, error) {
-	reader := bufio.NewReader(connCl)
-	// bytels := []byte{}
-	// for {
-	// 	byteReaded, err := reader.ReadByte()
-	// 	if err == nil {
-	// 		bytels = append(bytels, byteReaded)
-	// 	} else {
-	// 		if err == io.EOF {
-	// 			break
-	// 		} else {
-	// 			panic(err),,,,,,,
-	// 			panic(err),,,,,,,
-	// 			panic(err),,,,,,,
-	// 			panic(err),,,,,,,
-	// 		},,,,
-	// 	}
-
-	// }
-	bytels, err := reader.ReadBytes(4)
-	if err != nil {
-		// panic(err)
-		println("error: ", err)
-	}
-	return bytels, nil
-
-}
-
-// func (connCl *ConnectedClient) WriteStr(str string) {
-// 	if connCl.connection != nil && !connCl.died {
-// 		hold(connCl)
-// 		connCl.connection.Write([]byte(str))
-// 		release(connCl)
-// 	}
-// }
-
-func release(connCl *ConnectedClient) {
-	// connCl.writing = false
-}
-
-func hold(connCl *ConnectedClient) {
-	// for {
-	// 	if !connCl.writing {
-	// 		break
-	// 	}
-	// }
-	// connCl.writing = true
 }
 
 func (connCl *ConnectedClient) Die() {
