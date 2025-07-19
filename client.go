@@ -77,13 +77,11 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 
 func (connCl *ConnectedClient) Write(pl Payload) {
 	if connCl.connection != nil && !connCl.died {
-		addToGlobalTaskQueue(func() {
-			json, err := pl.toMsgPak()
-			if err != nil {
-				println("HATA ", err)
-			}
-			connCl.writeQueue <- json
-		})
+		json, err := pl.toMsgPak()
+		if err != nil {
+			println("HATA ", err)
+		}
+		connCl.writeQueue <- json
 
 	}
 }

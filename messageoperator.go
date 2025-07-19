@@ -29,20 +29,13 @@ func (op *MessageOperator) LoopMessages() {
 func (op *MessageOperator) LoopRequests() {
 	for {
 
-		messageIds := []reflect.Value{}
-		messageIdsLength := 0
-		addAndWaitToGlobalTaskQueue(func() {
-
-			messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
-			messageIdsLength = len(messageIds)
-		})
+		messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
+		messageIdsLength := len(messageIds)
 		if messageIdsLength > 0 {
 
 			for i := 0; i < messageIdsLength; i++ {
-				var or *OngoingRequest = nil
-				addAndWaitToGlobalTaskQueue(func() {
-					or = op.ongoingRequests[messageIds[i].String()]
-				})
+				var or *OngoingRequest = op.ongoingRequests[messageIds[i].String()]
+
 				if or != nil && or.targetInstance != nil && !or.sent {
 					message := or.requestMessage
 					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
@@ -71,16 +64,13 @@ func (op *MessageOperator) LoopRequests() {
 }
 
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
-	addToGlobalTaskQueue(func() {
-		op.ongoingRequests[message.id] = &OngoingRequest{targetInstance: clientRequesting, requestMessage: &message}
-	})
+	op.ongoingRequests[message.id] = &OngoingRequest{targetInstance: clientRequesting, requestMessage: &message}
 }
 
 func (op *MessageOperator) respondRequest(messageIncoming Message) {
 	var ongoingReq *OngoingRequest = nil
-	addAndWaitToGlobalTaskQueue(func() {
-		ongoingReq = op.ongoingRequests[messageIncoming.ResponseOfMessageId]
-	})
+	ongoingReq = op.ongoingRequests[messageIncoming.ResponseOfMessageId]
+
 	if ongoingReq != nil {
 		ongoingReq.targetInstance.Write(Payload{
 			Command:             CtResponse,
@@ -88,20 +78,16 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 			Subject:             messageIncoming.targetSubjectName,
 			ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
 		})
-		addToGlobalTaskQueue(func() {
-			delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+		delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
 
-		})
 	}
 
 }
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 
-	addToGlobalTaskQueue(
-		func() {
-			op.instances = append(op.instances, client)
-		})
+	op.instances = append(op.instances, client)
+
 	client.SetOperator(op)
 	client.writeQueue = make(chan []byte)
 
@@ -114,10 +100,8 @@ func (op *MessageOperator) removeConnectedClient(clientId string) {
 			instances = append(instances, op.instances[0])
 		}
 	}
-	addToGlobalTaskQueue(
-		func() {
-			op.instances = instances
-		})
+	op.instances = instances
+
 }
 
 func (op *MessageOperator) addEvent(msg Message) {
