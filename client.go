@@ -51,6 +51,8 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	connCl.died = false
 	connCl.Write(backPayload)
 	fmt.Println("Connected client's instance name is: " + connCl.instanceName)
+	connCl.operator.LoopMessages()
+	connCl.operator.LoopRequests()
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
@@ -80,12 +82,8 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		msg := MessageFromPayload(pl)
 		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
-		// case CtRequest:
-		// 	fmt.Println("Client " + connCl.instanceName + " have a request. " + " content: " + pl.Content + ", id: " + pl.MessageId)
-		// 	msg := MessageFromPayload(pl)
-		// 	connCl.operator.addMessage(msg)
-		// 	connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 	}
+
 }
 
 func (connCl *ConnectedClient) MainLoop() {
@@ -167,29 +165,32 @@ func waitAndRead(connCl net.Conn) ([]byte, error) {
 
 }
 
-func (connCl *ConnectedClient) WriteStr(str string) {
-	if connCl.connection != nil && !connCl.died {
-		hold(connCl)
-		connCl.connection.Write([]byte(str))
-		release(connCl)
-	}
-}
+// func (connCl *ConnectedClient) WriteStr(str string) {
+// 	if connCl.connection != nil && !connCl.died {
+// 		hold(connCl)
+// 		connCl.connection.Write([]byte(str))
+// 		release(connCl)
+// 	}
+// }
 
 func release(connCl *ConnectedClient) {
-	connCl.writing = false
+	// connCl.writing = false
 }
 
 func hold(connCl *ConnectedClient) {
-	for {
-		if !connCl.writing {
-			break
-		}
-	}
-	connCl.writing = true
+	// for {
+	// 	if !connCl.writing {
+	// 		break
+	// 	}
+	// }
+	// connCl.writing = true
 }
 
 func (connCl ConnectedClient) Write(pl Payload) {
 	if connCl.connection != nil && !connCl.died {
+		// addToGlobalTaskQueue(func() {
+
+		// })
 		hold(&connCl)
 		json, err := pl.toMsgPak()
 		if err != nil {
@@ -202,10 +203,12 @@ func (connCl ConnectedClient) Write(pl Payload) {
 
 func (connCl *ConnectedClient) Die() {
 	if connCl.connection != nil && !connCl.died {
-		defer connCl.connection.Close()
-		defer connCl.operator.removeConnectedClient(connCl.instanceName)
-		connCl.died = true
-		fmt.Println("Client " + connCl.instanceName + " has been closed")
 
+		addToGlobalTaskQueue(func() {
+			defer connCl.connection.Close()
+			defer connCl.operator.removeConnectedClient(connCl.instanceName)
+			connCl.died = true
+			fmt.Println("Client " + connCl.instanceName + " has been closed")
+		})
 	}
 }

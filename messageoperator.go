@@ -28,44 +28,43 @@ type MessageOperator struct {
 // }
 
 func (op *MessageOperator) LoopRequests() {
-	for {
-		messageIds := []reflect.Value{}
-		messageIdsLength := 0
 
-		addAndWaitToGlobalTaskQueue(func() {
-			messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
-			messageIdsLength = len(messageIds)
-		})
-		if messageIdsLength > 0 {
+	messageIds := []reflect.Value{}
+	messageIdsLength := 0
+	addAndWaitToGlobalTaskQueue(func() {
 
-			for i := 0; i < messageIdsLength; i++ {
-				or := op.ongoingRequests[messageIds[i].String()]
-				if or != nil && or.targetInstance != nil && !or.sent {
-					message := or.requestMessage
-					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+		messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
+		messageIdsLength = len(messageIds)
+	})
+	if messageIdsLength > 0 {
 
-						instance := op.instances[instanceIndex]
-						hasSubject := instance.IsListening(message.targetSubjectName)
-						if hasSubject {
-							pl := Payload{
-								Command:   CtRequest,
-								Content:   message.content,
-								MessageId: message.id,
-								Subject:   message.targetSubjectName,
-							}
-							instance.Write(pl)
-							or.sent = true
-							break
+		for i := 0; i < messageIdsLength; i++ {
+			var or *OngoingRequest = nil
+			addAndWaitToGlobalTaskQueue(func() {
+				or = op.ongoingRequests[messageIds[i].String()]
+			})
+			if or != nil && or.targetInstance != nil && !or.sent {
+				message := or.requestMessage
+				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 
+					instance := op.instances[instanceIndex]
+					hasSubject := instance.IsListening(message.targetSubjectName)
+					if hasSubject {
+						pl := Payload{
+							Command:   CtRequest,
+							Content:   message.content,
+							MessageId: message.id,
+							Subject:   message.targetSubjectName,
 						}
+						instance.Write(pl)
+						or.sent = true
+						break
 					}
 				}
-
 			}
 
-		} else {
-			break
 		}
+
 	}
 
 }
@@ -101,20 +100,20 @@ func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	addToGlobalTaskQueue(
 		func() {
 			op.instances = append(op.instances, client)
-			client.SetOperator(op)
 		})
+	client.SetOperator(op)
 
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
+	var instances []*ConnectedClient = []*ConnectedClient{}
+	for i := 0; i < len(op.instances); i++ {
+		if op.instances[i].instanceName != clientId {
+			instances = append(instances, op.instances[0])
+		}
+	}
 	addToGlobalTaskQueue(
 		func() {
-			var instances []*ConnectedClient = []*ConnectedClient{}
-			for i := 0; i < len(op.instances); i++ {
-				if op.instances[i].instanceName != clientId {
-					instances = append(instances, op.instances[0])
-				}
-			}
 			op.instances = instances
 		})
 }
@@ -137,6 +136,10 @@ func (op *MessageOperator) addEvent(msg *Message) {
 
 // 	}
 // }
+
+func (op *MessageOperator) LoopAll() {
+
+}
 
 func (op *MessageOperator) LoopMessages() {
 
@@ -177,24 +180,24 @@ func (op *MessageOperator) PublishEventMessage(msg *Message) {
 		instanceCount = len(op.instances)
 	})
 	for instanceIndex := 0; instanceIndex < instanceCount; instanceIndex++ {
-
+		var instance *ConnectedClient = nil
+		var hasSubject = false
 		addToGlobalTaskQueue(func() {
-			var instance *ConnectedClient = nil
-			hasSubject := false
 			instance = op.instances[instanceIndex]
 			if instance != nil {
 				hasSubject = instance.IsListening(msg.targetSubjectName)
 			}
-			if hasSubject {
-				pl := Payload{
-					Command:   msg.commandType,
-					Content:   msg.content,
-					Subject:   msg.targetSubjectName,
-					MessageId: msg.id,
-				}
-				instance.Write(pl)
-			}
 		})
+
+		if hasSubject {
+			pl := Payload{
+				Command:   msg.commandType,
+				Content:   msg.content,
+				Subject:   msg.targetSubjectName,
+				MessageId: msg.id,
+			}
+			instance.Write(pl)
+		}
 
 	}
 }

@@ -19,8 +19,8 @@ func main() {
 		ongoingRequests: make(map[string]*OngoingRequest),
 	}
 	go loopGlobalTaskQueue()
-	go mainOperato.LoopMessages()
-	go mainOperato.LoopRequests()
+	// go mainOperato.LoopMessages()
+	// go mainOperato.LoopRequests()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
