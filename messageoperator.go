@@ -94,20 +94,26 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 }
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
-
-	op.instances = append(op.instances, client)
+	addToGlobalTaskQueue(func() {
+		op.instances = append(op.instances, client)
+	})
 
 	client.SetOperator(op)
 	client.writeQueue = make(chan []byte)
-
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
 	var instances []*ConnectedClient = []*ConnectedClient{}
-	for i := 0; i < len(op.instances); i++ {
-		if op.instances[i].instanceName != clientId {
-			instances = append(instances, op.instances[0])
-		}
+	var instanceSize = 0
+	addAndWaitToGlobalTaskQueue(func() {
+		instanceSize = len(op.instances)
+	})
+	for i := 0; i < instanceSize; i++ {
+		addAndWaitToGlobalTaskQueue(func() {
+			if op.instances[i].instanceName != clientId {
+				instances = append(instances, op.instances[i])
+			}
+		})
 	}
 	op.instances = instances
 
