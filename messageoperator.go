@@ -107,14 +107,15 @@ func (op *MessageOperator) removeConnectedClient(clientId string) {
 	var instanceSize = 0
 	addAndWaitToGlobalTaskQueue(func() {
 		instanceSize = len(op.instances)
-	})
-	for i := 0; i < instanceSize; i++ {
-		addAndWaitToGlobalTaskQueue(func() {
+
+		for i := 0; i < instanceSize; i++ {
 			if op.instances[i].instanceName != clientId {
 				instances = append(instances, op.instances[i])
 			}
-		})
-	}
+		}
+
+	})
+
 	op.instances = instances
 
 }
