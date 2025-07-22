@@ -1,9 +1,9 @@
 - [x] JSON => MessagePack
 - [x] Mesaj listesi => Bekleyen Listesi / Gönderilen listesi
 - [x] İstek / yanıtlama
-- [ ] Eşzamanlı yazmayı önleme ve semafor yapısı
+- [x] Eşzamanlı yazmayı önleme ve semafor yapısı
 - [ ] "Listen" keyword zaten ekliyse ekleme!
-- [ ] Instance Yönetimi
+- [ ] Daha iyi Instance Yönetimi
         Map
         { instanceName: {
             instances: [Instance listesi]  
