@@ -32,6 +32,8 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 }
 
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
+
+	// aynı olan instance idleri
 	if CtConnect == payload.Command && payload.InstanceId != "" {
 		connCl.instanceName = payload.InstanceId
 	} else {

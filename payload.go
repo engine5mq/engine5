@@ -12,6 +12,7 @@ const (
 	CtConnect = "CONNECT"
 	//"CONNECT" işlemi başarılı olursa "instanceId" ile "CONNECT_SUCCESS" dönecektir
 	CtConnectSuccess = "CONNECT_SUCCESS"
+	CtConnectError   = "CONNECT_ERROR"
 	/* Client MQS'ye
 	`Content` ve `Subject` ile "EVENT" gönderir.
 	Bu, bütün Subject'i dinleyen Client'lara MessageId ile gönderilir */
