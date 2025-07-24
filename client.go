@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -94,7 +93,7 @@ func (connCl *ConnectedClient) WriterLoop() {
 		for v := range connCl.writeQueue {
 			connCl.connection.Write(append(v, 4))
 			ct++
-			println("Write count: (" + connCl.instanceName + ") " + strconv.Itoa(ct))
+			// println("Write count: (" + connCl.instanceName + ") " + strconv.Itoa(ct))
 		}
 	}
 	// pl := connCl.readPayload()
