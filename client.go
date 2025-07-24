@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -14,7 +13,7 @@ type ConnectedClient struct {
 	instanceName      string
 	connection        net.Conn
 	died              bool
-	listeningSubjects []string
+	listeningSubjects map[string]bool
 	operator          *MessageOperator
 	writing           bool
 	writeQueue        chan []byte
@@ -28,6 +27,7 @@ func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {
 func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 	connCl.connection = conn
 	connCl.writing = false
+	connCl.listeningSubjects = map[string]bool{}
 
 }
 
@@ -55,7 +55,7 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.Die()
 	case CtListen:
 		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
-		connCl.listeningSubjects = append(connCl.listeningSubjects, pl.Subject)
+		connCl.Listen(pl.Subject)
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
 		msg := MessageFromPayload(pl)
@@ -136,12 +136,13 @@ func (connCl *ConnectedClient) ReaderLoop() {
 }
 
 func (connCl *ConnectedClient) Listen(subjectName string) {
-	connCl.listeningSubjects = append(connCl.listeningSubjects, subjectName)
+	connCl.listeningSubjects[subjectName] = true
 }
 
 func (connCl *ConnectedClient) IsListening(subjectName string) bool {
-	hasSubject := slices.Contains(connCl.listeningSubjects, subjectName)
-	return hasSubject
+
+	var hasSubject, hasKey = connCl.listeningSubjects[subjectName]
+	return hasKey && hasSubject
 }
 
 func (connCl *ConnectedClient) Die() {
