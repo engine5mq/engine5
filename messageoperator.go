@@ -2,8 +2,6 @@ package main
 
 import (
 	"reflect"
-
-	"github.com/google/uuid"
 )
 
 type OngoingRequest struct {
@@ -100,11 +98,6 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	addToGlobalTaskQueue(func() {
-		if op.instances[client.instanceName] != nil {
-			println("Has a client name that same instance name. Renaming...")
-			client.instanceName = client.instanceName + uuid.NewString()
-			println("Renamed to " + client.instanceName)
-		}
 		op.instances[client.instanceName] = client
 	})
 

@@ -39,7 +39,12 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	} else {
 		connCl.instanceName = uuid.NewString()
 	}
-	connCl.instanceGroup = payload.InstanceGroup
+
+	if payload.InstanceGroup == "" {
+		connCl.instanceGroup = payload.InstanceId
+	} else {
+		connCl.instanceGroup = payload.InstanceGroup
+	}
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName, InstanceGroup: payload.InstanceGroup}
 	connCl.died = false
 	connCl.Write(backPayload)
