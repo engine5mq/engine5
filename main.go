@@ -13,7 +13,7 @@ func main() {
 	fmt.Println("Engine5 is being started")
 	fmt.Println("Listening on 8080")
 	mainOperato := MessageOperator{
-		instances:       []*ConnectedClient{},
+		instances:       make(map[string]*ConnectedClient),
 		waiting:         make(chan Message),
 		ongoingRequests: make(map[string]*OngoingRequest),
 	}

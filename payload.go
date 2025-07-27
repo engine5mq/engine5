@@ -51,6 +51,8 @@ type Payload struct {
 	Subject string `json:"subject"`
 	// Connect
 	InstanceId string `json:"instanceId"`
+	//
+	InstanceGroup string `json:"instance_group"`
 	// Event, Request
 	MessageId string `json:"messageId"`
 	// Response

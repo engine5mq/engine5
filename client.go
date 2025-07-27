@@ -10,6 +10,7 @@ import (
 
 type ConnectedClient struct {
 	instanceName      string
+	instanceGroup     string
 	connection        net.Conn
 	died              bool
 	listeningSubjects map[string]bool
@@ -33,13 +34,13 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 
 	// aynı olan instance idleri
-	if CtConnect == payload.Command && payload.InstanceId != "" {
+	if payload.InstanceId != "" {
 		connCl.instanceName = payload.InstanceId
 	} else {
 		connCl.instanceName = uuid.NewString()
 	}
-
-	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName}
+	connCl.instanceGroup = payload.InstanceGroup
+	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName, InstanceGroup: payload.InstanceGroup}
 	connCl.died = false
 	connCl.Write(backPayload)
 	fmt.Println("Connected client's instance name is: " + connCl.instanceName)

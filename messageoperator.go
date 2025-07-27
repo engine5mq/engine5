@@ -13,7 +13,7 @@ type OngoingRequest struct {
 }
 
 type MessageOperator struct {
-	instances       []*ConnectedClient
+	instances       map[string]*ConnectedClient
 	waiting         chan Message
 	ongoingRequests map[string]*OngoingRequest
 }
@@ -45,9 +45,9 @@ func (op *MessageOperator) LoopRequests() {
 				})
 				if or != nil && or.targetInstance != nil && !or.sent {
 					message := or.requestMessage
-					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-
+					for instanceIndex := range op.instances {
 						instance := op.instances[instanceIndex]
+
 						hasSubject := instance.IsListening(message.targetSubjectName)
 						if hasSubject {
 							pl := Payload{
@@ -56,10 +56,13 @@ func (op *MessageOperator) LoopRequests() {
 								MessageId: message.id,
 								Subject:   message.targetSubjectName,
 							}
+
 							instance.Write(pl)
 							or.sent = true
 							break
+
 						}
+
 					}
 				}
 
@@ -97,18 +100,12 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	addToGlobalTaskQueue(func() {
-		for instanceExist := range op.instances {
-			existInstanceName := op.instances[instanceExist].instanceName
-			if client.instanceName == existInstanceName {
-				println("Has a client name that same instance name. Renaming...")
-				client.instanceName = client.instanceName + uuid.NewString()
-				println("Renamed to " + client.instanceName)
-
-			}
+		if op.instances[client.instanceName] != nil {
+			println("Has a client name that same instance name. Renaming...")
+			client.instanceName = client.instanceName + uuid.NewString()
+			println("Renamed to " + client.instanceName)
 		}
-	})
-	addToGlobalTaskQueue(func() {
-		op.instances = append(op.instances, client)
+		op.instances[client.instanceName] = client
 	})
 
 	client.SetOperator(op)
@@ -116,20 +113,12 @@ func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
-	var instances []*ConnectedClient = []*ConnectedClient{}
-	var instanceSize = 0
+
 	addAndWaitToGlobalTaskQueue(func() {
-		instanceSize = len(op.instances)
-
-		for i := 0; i < instanceSize; i++ {
-			if op.instances[i].instanceName != clientId {
-				instances = append(instances, op.instances[i])
-			}
-		}
-
+		delete(op.instances, clientId)
 	})
 
-	op.instances = instances
+	// op.instances = instances
 
 }
 
@@ -138,26 +127,39 @@ func (op *MessageOperator) addEvent(msg Message) {
 }
 
 func (op *MessageOperator) PublishEventMessage(msg Message) {
-	instanceCount := 0
-	instanceCount = len(op.instances)
+	// instanceCount := 0
+	// instanceCount = len(op.instances)
+	sentGroups := make(map[string]bool)
 
-	for instanceIndex := 0; instanceIndex < instanceCount; instanceIndex++ {
-		var instance *ConnectedClient = nil
-		var hasSubject = false
-		instance = op.instances[instanceIndex]
-		if instance != nil {
-			hasSubject = instance.IsListening(msg.targetSubjectName)
+	for instanceId := range op.instances {
+		instance := op.instances[instanceId]
+		var sentGroupVal, sentGroupExist = false, false
+
+		if instance.instanceGroup != "" {
+			sentGroupVal, sentGroupExist = sentGroups[instance.instanceGroup]
 		}
 
-		if hasSubject {
-			pl := Payload{
-				Command:   msg.commandType,
-				Content:   msg.content,
-				Subject:   msg.targetSubjectName,
-				MessageId: msg.id,
+		if instance != nil && (!sentGroupExist || !sentGroupVal) {
+			hasSubject := instance.IsListening(msg.targetSubjectName)
+
+			if hasSubject {
+				pl := Payload{
+					Command:   msg.commandType,
+					Content:   msg.content,
+					Subject:   msg.targetSubjectName,
+					MessageId: msg.id,
+				}
+				instance.Write(pl)
+
+				if instance.instanceGroup != "" {
+					sentGroups[instance.instanceGroup] = true
+				}
 			}
-			instance.Write(pl)
 		}
 
 	}
+
+	// for instanceIndex := 0; instanceIndex < instanceCount; instanceIndex++ {
+
+	// }
 }
