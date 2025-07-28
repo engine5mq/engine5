@@ -51,14 +51,13 @@ type Payload struct {
 	Subject string `json:"subject"`
 	// Connect
 	InstanceId string `json:"instanceId"`
-	//
-	InstanceGroup string `json:"instance_group"`
 	// Event, Request
 	MessageId string `json:"messageId"`
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
 	// Not using yet
-	Completed bool `json:"completed"`
+	Completed     bool   `json:"completed"`
+	InstanceGroup string `json:"instance_group"`
 }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {

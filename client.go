@@ -10,13 +10,13 @@ import (
 
 type ConnectedClient struct {
 	instanceName      string
-	instanceGroup     string
 	connection        net.Conn
 	died              bool
 	listeningSubjects map[string]bool
 	operator          *MessageOperator
 	writing           bool
 	writeQueue        chan []byte
+	instanceGroup     string
 }
 
 func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {
@@ -34,7 +34,7 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 
 	// aynı olan instance idleri
-	if payload.InstanceId != "" {
+	if CtConnect == payload.Command && payload.InstanceId != "" {
 		connCl.instanceName = payload.InstanceId
 	} else {
 		connCl.instanceName = uuid.NewString()
