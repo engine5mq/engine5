@@ -106,13 +106,12 @@ func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 
 			}
 		}
-	})
-	addToGlobalTaskQueue(func() {
 		op.instances = append(op.instances, client)
+
+		client.SetOperator(op)
+		client.writeQueue = make(chan []byte)
 	})
 
-	client.SetOperator(op)
-	client.writeQueue = make(chan []byte)
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
