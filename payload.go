@@ -12,6 +12,7 @@ const (
 	CtConnect = "CONNECT"
 	//"CONNECT" işlemi başarılı olursa "instanceId" ile "CONNECT_SUCCESS" dönecektir
 	CtConnectSuccess = "CONNECT_SUCCESS"
+	CtConnectError   = "CONNECT_ERROR"
 	/* Client MQS'ye
 	`Content` ve `Subject` ile "EVENT" gönderir.
 	Bu, bütün Subject'i dinleyen Client'lara MessageId ile gönderilir */
@@ -43,13 +44,20 @@ const (
 	USE STRING INSTEAD OF NUMBER TYPE. IT IS SEPARATED BY '4' BUT THE PRESENCE OF THE NUMBER 4 (INTEGER - FIXINT) IN THE PAYLOAD CAUSES IT TO BE TRUNCTURED WRONGLY
 */
 type Payload struct {
-	Command             string `json:"command"`
-	Content             string `json:"content"`
-	Subject             string `json:"subject"`
-	InstanceId          string `json:"instanceId"`
-	MessageId           string `json:"messageId"`
+	Command string `json:"command"`
+	// Event, Request, Response, Connecton Error
+	Content string `json:"content"`
+	// Event, Request, Response, Connecton Error
+	Subject string `json:"subject"`
+	// Connect
+	InstanceId string `json:"instanceId"`
+	// Event, Request
+	MessageId string `json:"messageId"`
+	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
-	Completed           bool   `json:"completed"`
+	// Not using yet
+	Completed     bool   `json:"completed"`
+	InstanceGroup string `json:"instance_group"`
 }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {

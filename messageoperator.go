@@ -2,6 +2,8 @@ package main
 
 import (
 	"reflect"
+
+	"github.com/google/uuid"
 )
 
 type OngoingRequest struct {
@@ -95,11 +97,21 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	addToGlobalTaskQueue(func() {
+		for instanceExist := range op.instances {
+			existInstanceName := op.instances[instanceExist].instanceName
+			if client.instanceName == existInstanceName {
+				println("Has a client name that same instance name. Renaming...")
+				client.instanceName = client.instanceName + uuid.NewString()
+				println("Renamed to " + client.instanceName)
+
+			}
+		}
 		op.instances = append(op.instances, client)
+
+		client.SetOperator(op)
+		client.writeQueue = make(chan []byte)
 	})
 
-	client.SetOperator(op)
-	client.writeQueue = make(chan []byte)
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
@@ -127,23 +139,32 @@ func (op *MessageOperator) addEvent(msg Message) {
 func (op *MessageOperator) PublishEventMessage(msg Message) {
 	instanceCount := 0
 	instanceCount = len(op.instances)
+	sentGroups := make(map[string]bool)
 
 	for instanceIndex := 0; instanceIndex < instanceCount; instanceIndex++ {
 		var instance *ConnectedClient = nil
 		var hasSubject = false
 		instance = op.instances[instanceIndex]
+		var sentGroupVal, sentGroupExist = false, false
 		if instance != nil {
-			hasSubject = instance.IsListening(msg.targetSubjectName)
-		}
-
-		if hasSubject {
-			pl := Payload{
-				Command:   msg.commandType,
-				Content:   msg.content,
-				Subject:   msg.targetSubjectName,
-				MessageId: msg.id,
+			if instance.instanceGroup != "" {
+				sentGroupVal, sentGroupExist = sentGroups[instance.instanceGroup]
 			}
-			instance.Write(pl)
+
+			hasSubject = instance.IsListening(msg.targetSubjectName)
+
+			if hasSubject && (!sentGroupExist || !sentGroupVal) {
+				pl := Payload{
+					Command:   msg.commandType,
+					Content:   msg.content,
+					Subject:   msg.targetSubjectName,
+					MessageId: msg.id,
+				}
+				instance.Write(pl)
+				if instance.instanceGroup != "" {
+					sentGroups[instance.instanceGroup] = true
+				}
+			}
 		}
 
 	}
