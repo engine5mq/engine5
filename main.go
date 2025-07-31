@@ -10,7 +10,7 @@ func main() {
 
 	port := os.Getenv("E5_PORT")
 	if port == "" {
-		port = "8080"
+		port = "3535"
 	}
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
