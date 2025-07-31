@@ -3,15 +3,21 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 )
 
 func main() {
-	ln, err := net.Listen("tcp", ":8080")
+
+	port := os.Getenv("E5_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("Engine5 is being started")
-	fmt.Println("Listening on 8080")
+	fmt.Println("Listening on " + port)
 	mainOperato := MessageOperator{
 		instances:       []*ConnectedClient{},
 		waiting:         make(chan Message),
