@@ -15,6 +15,7 @@ type OngoingRequest struct {
 type MessageOperator struct {
 	instances       []*ConnectedClient
 	waiting         chan Message
+	requestGate     chan *OngoingRequest
 	ongoingRequests map[string]*OngoingRequest
 }
 
@@ -29,7 +30,19 @@ func (op *MessageOperator) LoopMessages() {
 }
 
 func (op *MessageOperator) LoopRequests() {
+
 	for {
+
+		select {
+		case incomingMessage, ok := <-op.requestGate:
+			if ok {
+				op.ongoingRequests[incomingMessage.requestMessage.id] = incomingMessage
+			}
+		}
+		// for incomingMessage := range op.requestGate {
+		//
+		// }
+
 		messageIds := []reflect.Value{}
 		messageIdsLength := 0
 		addAndWaitToGlobalTaskQueue(func() {
@@ -71,9 +84,7 @@ func (op *MessageOperator) LoopRequests() {
 }
 
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
-	addToGlobalTaskQueue(func() {
-		op.ongoingRequests[message.id] = &OngoingRequest{targetInstance: clientRequesting, requestMessage: &message}
-	})
+	op.requestGate <- &OngoingRequest{targetInstance: clientRequesting, requestMessage: &message}
 }
 
 func (op *MessageOperator) respondRequest(messageIncoming Message) {
