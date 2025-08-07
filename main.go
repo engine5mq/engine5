@@ -22,9 +22,8 @@ func main() {
 		instances:       []*ConnectedClient{},
 		waiting:         make(chan Message),
 		ongoingRequests: make(map[string]*OngoingRequest),
-		requestGate:     make(chan *OngoingRequest),
+		requestGate:     make(chan *RequestGateObject),
 	}
-	go loopGlobalTaskQueue()
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
 	for {

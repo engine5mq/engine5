@@ -15,9 +15,15 @@ var GlobalTaskQueue = make(chan *QueueTicket)
 // Worker
 func loopGlobalTaskQueue() {
 	for {
-		for task := range GlobalTaskQueue {
-			task.voidMethod()
-			task.completed = true
+		select {
+		case _, ok := <-GlobalTaskQueue:
+			if ok {
+				for task := range GlobalTaskQueue {
+					task.voidMethod()
+					task.completed = true
+				}
+			}
+
 		}
 	}
 

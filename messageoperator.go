@@ -6,6 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type RequestGateObject struct {
+	by              *ConnectedClient
+	requestMessage  *Message
+	responseMessage *Message
+	rescan          bool
+}
+
 type OngoingRequest struct {
 	targetInstance *ConnectedClient
 	requestMessage *Message
@@ -15,7 +22,7 @@ type OngoingRequest struct {
 type MessageOperator struct {
 	instances       []*ConnectedClient
 	waiting         chan Message
-	requestGate     chan *OngoingRequest
+	requestGate     chan *RequestGateObject
 	ongoingRequests map[string]*OngoingRequest
 }
 
@@ -36,7 +43,24 @@ func (op *MessageOperator) LoopRequests() {
 		select {
 		case incomingMessage, ok := <-op.requestGate:
 			if ok {
-				op.ongoingRequests[incomingMessage.requestMessage.id] = incomingMessage
+				if incomingMessage.requestMessage != nil {
+					op.ongoingRequests[incomingMessage.requestMessage.id] = &OngoingRequest{
+						targetInstance: incomingMessage.by,
+						requestMessage: incomingMessage.requestMessage,
+					}
+				} else if incomingMessage.responseMessage != nil {
+					messageIncoming := incomingMessage.responseMessage
+					ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
+
+					ongoingReq.targetInstance.Write(Payload{
+						Command:             CtResponse,
+						Content:             messageIncoming.content,
+						Subject:             messageIncoming.targetSubjectName,
+						ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
+					})
+					delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+
+				}
 			}
 		}
 		// for incomingMessage := range op.requestGate {
@@ -45,17 +69,17 @@ func (op *MessageOperator) LoopRequests() {
 
 		messageIds := []reflect.Value{}
 		messageIdsLength := 0
-		addAndWaitToGlobalTaskQueue(func() {
-			messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
-			messageIdsLength = len(messageIds)
-		})
+		// addAndWaitToGlobalTaskQueue(func() {
+		messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
+		messageIdsLength = len(messageIds)
+		// })
 		if messageIdsLength > 0 {
 
 			for i := 0; i < messageIdsLength; i++ {
 				var or *OngoingRequest = nil
-				addAndWaitToGlobalTaskQueue(func() {
-					or = op.ongoingRequests[messageIds[i].String()]
-				})
+				// addAndWaitToGlobalTaskQueue(func() {
+				or = op.ongoingRequests[messageIds[i].String()]
+				// })
 				if or != nil && or.targetInstance != nil && !or.sent {
 					message := or.requestMessage
 					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
@@ -84,60 +108,46 @@ func (op *MessageOperator) LoopRequests() {
 }
 
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
-	op.requestGate <- &OngoingRequest{targetInstance: clientRequesting, requestMessage: &message}
+	op.requestGate <- &RequestGateObject{by: clientRequesting, requestMessage: &message}
 }
 
 func (op *MessageOperator) respondRequest(messageIncoming Message) {
-	var ongoingReq *OngoingRequest = nil
-	addAndWaitToGlobalTaskQueue(func() {
-		ongoingReq = op.ongoingRequests[messageIncoming.ResponseOfMessageId]
-	})
-	if ongoingReq != nil {
-		ongoingReq.targetInstance.Write(Payload{
-			Command:             CtResponse,
-			Content:             messageIncoming.content,
-			Subject:             messageIncoming.targetSubjectName,
-			ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
-		})
-		addAndWaitToGlobalTaskQueue(func() {
-			delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
-		})
-	}
+	op.requestGate <- &RequestGateObject{responseMessage: &messageIncoming}
 
 }
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
-	addToGlobalTaskQueue(func() {
-		for instanceExist := range op.instances {
-			existInstanceName := op.instances[instanceExist].instanceName
-			if client.instanceName == existInstanceName {
-				println("Has a client name that same instance name. Renaming...")
-				client.instanceName = client.instanceName + uuid.NewString()
-				println("Renamed to " + client.instanceName)
+	// addToGlobalTaskQueue(func() {
+	for instanceExist := range op.instances {
+		existInstanceName := op.instances[instanceExist].instanceName
+		if client.instanceName == existInstanceName {
+			println("Has a client name that same instance name. Renaming...")
+			client.instanceName = client.instanceName + uuid.NewString()
+			println("Renamed to " + client.instanceName)
 
-			}
 		}
-		op.instances = append(op.instances, client)
+	}
+	op.instances = append(op.instances, client)
 
-		client.SetOperator(op)
-		client.writeQueue = make(chan []byte)
-	})
+	client.SetOperator(op)
+	client.writeQueue = make(chan []byte)
+	// })
 
 }
 
 func (op *MessageOperator) removeConnectedClient(clientId string) {
 	var instances []*ConnectedClient = []*ConnectedClient{}
 	var instanceSize = 0
-	addAndWaitToGlobalTaskQueue(func() {
-		instanceSize = len(op.instances)
+	// addAndWaitToGlobalTaskQueue(func() {
+	instanceSize = len(op.instances)
 
-		for i := 0; i < instanceSize; i++ {
-			if op.instances[i].instanceName != clientId {
-				instances = append(instances, op.instances[i])
-			}
+	for i := 0; i < instanceSize; i++ {
+		if op.instances[i].instanceName != clientId {
+			instances = append(instances, op.instances[i])
 		}
+	}
 
-	})
+	// })
 
 	op.instances = instances
 

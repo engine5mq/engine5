@@ -61,6 +61,7 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	case CtListen:
 		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
 		connCl.Listen(pl.Subject)
+		connCl.operator.requestGate <- &RequestGateObject{rescan: true}
 		connCl.Write(Payload{Command: CtRecieved, Subject: pl.Subject})
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
