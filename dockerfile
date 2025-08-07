@@ -25,3 +25,4 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /engine5
 
 # Run
 CMD ["/engine5"]
+c
