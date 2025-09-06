@@ -39,72 +39,82 @@ func (op *MessageOperator) LoopMessages() {
 func (op *MessageOperator) LoopRequests() {
 
 	for {
-
-		select {
-		case incomingMessage, ok := <-op.requestGate:
-			if ok {
-				if incomingMessage.requestMessage != nil {
-					op.ongoingRequests[incomingMessage.requestMessage.id] = &OngoingRequest{
-						targetInstance: incomingMessage.by,
-						requestMessage: incomingMessage.requestMessage,
-					}
-				} else if incomingMessage.responseMessage != nil {
-					messageIncoming := incomingMessage.responseMessage
-					ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
-
-					ongoingReq.targetInstance.Write(Payload{
-						Command:             CtResponse,
-						Content:             messageIncoming.content,
-						Subject:             messageIncoming.targetSubjectName,
-						ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
-					})
-					delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
-
-				}
-			}
-		}
-		// for incomingMessage := range op.requestGate {
-		//
-		// }
-
-		messageIds := []reflect.Value{}
-		messageIdsLength := 0
-		// addAndWaitToGlobalTaskQueue(func() {
-		messageIds = reflect.ValueOf(op.ongoingRequests).MapKeys()
-		messageIdsLength = len(messageIds)
-		// })
-		if messageIdsLength > 0 {
-
-			for i := 0; i < messageIdsLength; i++ {
-				var or *OngoingRequest = nil
-				// addAndWaitToGlobalTaskQueue(func() {
-				or = op.ongoingRequests[messageIds[i].String()]
-				// })
-				if or != nil && or.targetInstance != nil && !or.sent {
-					message := or.requestMessage
-					for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-
-						instance := op.instances[instanceIndex]
-						hasSubject := instance.IsListening(message.targetSubjectName)
-						if hasSubject {
-							pl := Payload{
-								Command:   CtRequest,
-								Content:   message.content,
-								MessageId: message.id,
-								Subject:   message.targetSubjectName,
-							}
-							instance.Write(pl)
-							or.sent = true
-							break
-						}
-					}
-				}
-
-			}
-
-		}
+		op.DistrubuteResponses()
+		op.DistrubuteReceivedRequests()
 	}
 
+}
+
+func (op *MessageOperator) DistrubuteResponses() {
+	select {
+	case incomingMessage, ok := <-op.requestGate:
+		if ok {
+			if incomingMessage.requestMessage != nil {
+				op.ongoingRequests[incomingMessage.requestMessage.id] = &OngoingRequest{
+					targetInstance: incomingMessage.by,
+					requestMessage: incomingMessage.requestMessage,
+				}
+			} else if incomingMessage.responseMessage != nil {
+				messageIncoming := incomingMessage.responseMessage
+				ongoingReq := op.ongoingRequests[messageIncoming.ResponseOfMessageId]
+
+				ongoingReq.targetInstance.Write(Payload{
+					Command:             CtResponse,
+					Content:             messageIncoming.content,
+					Subject:             messageIncoming.targetSubjectName,
+					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
+				})
+				delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+
+			}
+		}
+	}
+}
+
+func (op *MessageOperator) DistrubuteReceivedRequests() {
+	messageIds := reflect.ValueOf(op.ongoingRequests).MapKeys()
+	messageIdsLength := len(messageIds)
+	if messageIdsLength > 0 {
+
+		for i := 0; i < messageIdsLength; i++ {
+			or := op.ongoingRequests[messageIds[i].String()]
+			if or != nil && or.targetInstance != nil && !or.sent {
+				message := or.requestMessage
+				pl := Payload{
+					Command:   CtRequest,
+					Content:   message.content,
+					MessageId: message.id,
+					Subject:   message.targetSubjectName,
+				}
+				relatedInstances := []*ConnectedClient{}
+
+				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
+
+					instance := op.instances[instanceIndex]
+					hasSubject := instance.IsListening(message.targetSubjectName)
+					if hasSubject {
+						relatedInstances = append(relatedInstances, instance)
+					}
+
+				}
+
+				if len(relatedInstances) > 0 {
+					instance := relatedInstances[0]
+					instance.Write(pl)
+					or.sent = true
+				} else {
+					or.targetInstance.Write(Payload{
+						Command:           CtResponseError,
+						Content:           "No clients matching the criteria were found.",
+						ResponseErrorSide: CtResponseErrorSideClient,
+					})
+					delete(op.ongoingRequests, or.requestMessage.id)
+				}
+			}
+
+		}
+
+	}
 }
 
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {

@@ -27,6 +27,10 @@ const (
 	// Client "content" ve "id" ile istek gönderir
 	CtResponse = "RESPONSE"
 	// Herhangi bir "event" ya da "request" dinleneceği zaman `Subject` ile "LISTEN" gönderilir
+	CtResponseError           = "RESPONSE_ERROR"
+	CtResponseErrorSideE5     = "E5"
+	CtResponseErrorSideClient = "CLIENT"
+	// Herhangi bir "event" ya da "request" dinleneceği zaman `Subject` ile "LISTEN" gönderilir
 	CtListen = "LISTEN"
 	// Client kapanacağı anda "CLOSE" gönderir
 	CtClose = "CLOSE"
@@ -55,6 +59,8 @@ type Payload struct {
 	MessageId string `json:"messageId"`
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
+	ResponseErrorSide   string
+
 	// Not using yet
 	Completed     bool   `json:"completed"`
 	InstanceGroup string `json:"instance_group"`
