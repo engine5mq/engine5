@@ -19,11 +19,17 @@ type OngoingRequest struct {
 	sent           bool
 }
 
+type InstanceGroupIndexSelection struct {
+	instanceGroupName string
+	index             int
+}
+
 type MessageOperator struct {
-	instances       []*ConnectedClient
-	waiting         chan Message
-	requestGate     chan *RequestGateObject
-	ongoingRequests map[string]*OngoingRequest
+	instances                     []*ConnectedClient
+	waiting                       chan Message
+	requestGate                   chan *RequestGateObject
+	ongoingRequests               map[string]*OngoingRequest
+	instanceGroupSelectionIndexes map[string]int
 }
 
 func (op *MessageOperator) LoopMessages() {
@@ -86,20 +92,24 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 					MessageId: message.id,
 					Subject:   message.targetSubjectName,
 				}
+				iSelectionMappingKey := message.targetSubjectName + "_" + message.targetInstanceGroupName
+
 				relatedInstances := []*ConnectedClient{}
 
 				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
-
 					instance := op.instances[instanceIndex]
 					hasSubject := instance.IsListening(message.targetSubjectName)
-					if hasSubject {
+					filteringInstanceGroup := (message.targetSubjectName != "") || message.targetInstanceGroupName == instance.instanceGroup
+					if hasSubject && filteringInstanceGroup {
 						relatedInstances = append(relatedInstances, instance)
 					}
 
 				}
 
-				if len(relatedInstances) > 0 {
-					instance := relatedInstances[0]
+				instanceLength := len(relatedInstances)
+				if instanceLength > 0 {
+					isi := op.SelectIndex(iSelectionMappingKey, instanceLength)
+					instance := relatedInstances[isi]
 					instance.Write(pl)
 					or.sent = true
 				} else {
@@ -114,6 +124,18 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 
 		}
 
+	}
+}
+
+func (op *MessageOperator) SelectIndex(mappingName string, maxLength int) int {
+	var indexInfo, hasIndex = op.instanceGroupSelectionIndexes[mappingName]
+	if !hasIndex {
+		op.instanceGroupSelectionIndexes[mappingName] = 0
+		return 0
+	} else {
+		newIndex := (indexInfo + 1) % maxLength
+		op.instanceGroupSelectionIndexes[mappingName] = newIndex
+		return newIndex
 	}
 }
 
