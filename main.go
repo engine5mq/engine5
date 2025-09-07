@@ -19,10 +19,11 @@ func main() {
 	fmt.Println("Engine5 is being started")
 	fmt.Println("Listening on " + port)
 	mainOperato := MessageOperator{
-		instances:       []*ConnectedClient{},
-		waiting:         make(chan Message),
-		ongoingRequests: make(map[string]*OngoingRequest),
-		requestGate:     make(chan *RequestGateObject),
+		instances:                     []*ConnectedClient{},
+		waiting:                       make(chan Message),
+		ongoingRequests:               make(map[string]*OngoingRequest),
+		requestGate:                   make(chan *RequestGateObject),
+		instanceGroupSelectionIndexes: make(map[string]*InstanceGroupIndexSelection),
 	}
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()

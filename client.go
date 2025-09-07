@@ -154,9 +154,8 @@ func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 
 func (connCl *ConnectedClient) Die() {
 	if connCl.connection != nil && !connCl.died {
-
-		defer connCl.connection.Close()
 		defer connCl.operator.removeConnectedClient(connCl.instanceName)
+		defer connCl.connection.Close()
 		connCl.died = true
 		fmt.Println("Client " + connCl.instanceName + " has been closed")
 	}

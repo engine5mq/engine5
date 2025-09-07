@@ -20,8 +20,7 @@ type OngoingRequest struct {
 }
 
 type InstanceGroupIndexSelection struct {
-	instanceGroupName string
-	index             int
+	index int
 }
 
 type MessageOperator struct {
@@ -29,7 +28,7 @@ type MessageOperator struct {
 	waiting                       chan Message
 	requestGate                   chan *RequestGateObject
 	ongoingRequests               map[string]*OngoingRequest
-	instanceGroupSelectionIndexes map[string]int
+	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
 }
 
 func (op *MessageOperator) LoopMessages() {
@@ -99,7 +98,8 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 				for instanceIndex := 0; instanceIndex < len(op.instances); instanceIndex++ {
 					instance := op.instances[instanceIndex]
 					hasSubject := instance.IsListening(message.targetSubjectName)
-					filteringInstanceGroup := (message.targetSubjectName != "") || message.targetInstanceGroupName == instance.instanceGroup
+					// Eğer mesajda özellikle targetSubject
+					filteringInstanceGroup := (message.targetInstanceGroupName == "") || message.targetInstanceGroupName == instance.instanceGroup
 					if hasSubject && filteringInstanceGroup {
 						relatedInstances = append(relatedInstances, instance)
 					}
@@ -130,11 +130,11 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 func (op *MessageOperator) SelectIndex(mappingName string, maxLength int) int {
 	var indexInfo, hasIndex = op.instanceGroupSelectionIndexes[mappingName]
 	if !hasIndex {
-		op.instanceGroupSelectionIndexes[mappingName] = 0
+		op.instanceGroupSelectionIndexes[mappingName] = &InstanceGroupIndexSelection{index: 0}
 		return 0
 	} else {
-		newIndex := (indexInfo + 1) % maxLength
-		op.instanceGroupSelectionIndexes[mappingName] = newIndex
+		newIndex := (indexInfo.index + 1) % maxLength
+		op.instanceGroupSelectionIndexes[mappingName].index = newIndex
 		return newIndex
 	}
 }
@@ -178,8 +178,6 @@ func (op *MessageOperator) removeConnectedClient(clientId string) {
 			instances = append(instances, op.instances[i])
 		}
 	}
-
-	// })
 
 	op.instances = instances
 
