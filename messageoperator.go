@@ -21,18 +21,40 @@ type InstanceGroupIndexSelection struct {
 	index int
 }
 
+type ClientConnectionStatusChange struct {
+	client *ConnectedClient
+	alive  bool
+}
+
 type MessageOperator struct {
 	instances                     []*ConnectedClient
 	waiting                       chan Message
 	requestGate                   chan *RequestGateObject
 	ongoingRequests               map[string]*OngoingRequest
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
+	clientConnectChangeGate       chan *ClientConnectionStatusChange
 }
 
 // LoopMessages listens for event messages and publishes them.
 func (op *MessageOperator) LoopMessages() {
 	for eventMsg := range op.waiting {
 		op.PublishEventMessage(eventMsg)
+	}
+}
+
+func (op *MessageOperator) LoopClientConnections() {
+	for {
+		select {
+		case change := <-op.clientConnectChangeGate:
+			if change.alive {
+				op.addConnectedClientRaw(change.client)
+			} else {
+				op.removeConnectedClientRaw(change.client.instanceName)
+			}
+		default:
+			// Non-blocking select
+		}
+
 	}
 }
 
@@ -139,8 +161,12 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 	op.requestGate <- &RequestGateObject{responseMessage: &messageIncoming}
 }
 
-// addConnectedClient adds a new client, ensuring unique instance names.
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
+	op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: true}
+}
+
+// addConnectedClient adds a new client, ensuring unique instance names.
+func (op *MessageOperator) addConnectedClientRaw(client *ConnectedClient) {
 	for _, existInstance := range op.instances {
 		if client.instanceName == existInstance.instanceName {
 			println("Has a client name that same instance name. Renaming...")
@@ -153,8 +179,12 @@ func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	client.writeQueue = make(chan []byte)
 }
 
+func (op *MessageOperator) removeConnectedClient(client *ConnectedClient) {
+	op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: false}
+}
+
 // removeConnectedClient removes a client by its instance name.
-func (op *MessageOperator) removeConnectedClient(clientId string) {
+func (op *MessageOperator) removeConnectedClientRaw(clientId string) {
 	var instances []*ConnectedClient
 	for _, inst := range op.instances {
 		if inst.instanceName != clientId {

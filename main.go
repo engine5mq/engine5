@@ -24,9 +24,11 @@ func main() {
 		ongoingRequests:               make(map[string]*OngoingRequest),
 		requestGate:                   make(chan *RequestGateObject),
 		instanceGroupSelectionIndexes: make(map[string]*InstanceGroupIndexSelection),
+		clientConnectChangeGate:       make(chan *ClientConnectionStatusChange),
 	}
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
+	go mainOperato.LoopClientConnections()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
