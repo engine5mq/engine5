@@ -61,9 +61,9 @@ type Payload struct {
 	ResponseOfMessageId string `json:"responseOfMessageId"`
 	ResponseErrorSide   string
 
-	// Not using yet
-	Completed     bool   `json:"completed"`
-	InstanceGroup string `json:"instance_group"`
+	// If the request is not completed, should be true, otherwise false.
+	NotCompletedYet bool   `json:"not_completed_yet"`
+	InstanceGroup   string `json:"instance_group"`
 }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {

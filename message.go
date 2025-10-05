@@ -13,6 +13,7 @@ type Message struct {
 	targetInstanceGroupName string
 	commandType             string
 	ResponseOfMessageId     string
+	NotCompletedYet         bool
 }
 
 func MessageFromPayload(pl Payload) Message {

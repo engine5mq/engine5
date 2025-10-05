@@ -88,7 +88,9 @@ func (op *MessageOperator) DistrubuteResponses() {
 					Subject:             messageIncoming.targetSubjectName,
 					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
 				})
-				delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+				if !messageIncoming.NotCompletedYet {
+					delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+				}
 			}
 		}
 	default:
