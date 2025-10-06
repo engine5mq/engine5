@@ -24,6 +24,7 @@ func main() {
 		ongoingRequests:               make(map[string]*OngoingRequest),
 		requestGate:                   make(chan *RequestGateObject),
 		instanceGroupSelectionIndexes: make(map[string]*InstanceGroupIndexSelection),
+		clientConnectionQueue:         NewTaskQueue(1),
 	}
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
@@ -39,7 +40,7 @@ func main() {
 }
 
 func handleConnection(conn net.Conn, op *MessageOperator) {
-	var connCl = ConnectedClient{died: true}
+	var connCl = ConnectedClient{died: true, writeQueue: make(chan []byte, 100)}
 	// defer connCl.Die()
 	connCl.SetConnection(conn)
 	op.addConnectedClient(&connCl)

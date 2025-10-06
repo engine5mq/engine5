@@ -27,6 +27,7 @@ type MessageOperator struct {
 	requestGate                   chan *RequestGateObject
 	ongoingRequests               map[string]*OngoingRequest
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
+	clientConnectionQueue         *TaskQueue
 }
 
 // LoopMessages listens for event messages and publishes them.
@@ -141,27 +142,32 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 
 // addConnectedClient adds a new client, ensuring unique instance names.
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
-	for _, existInstance := range op.instances {
-		if client.instanceName == existInstance.instanceName {
-			println("Has a client name that same instance name. Renaming...")
-			client.instanceName = client.instanceName + uuid.NewString()
-			println("Renamed to " + client.instanceName)
+	op.clientConnectionQueue.Enqueue(func() {
+		for _, existInstance := range op.instances {
+			if client.instanceName == existInstance.instanceName {
+				println("Has a client name that same instance name. Renaming...")
+				client.instanceName = client.instanceName + uuid.NewString()
+				println("Renamed to " + client.instanceName)
+			}
 		}
-	}
-	op.instances = append(op.instances, client)
-	client.SetOperator(op)
-	client.writeQueue = make(chan []byte)
+		op.instances = append(op.instances, client)
+		client.SetOperator(op)
+	})
+
 }
 
 // removeConnectedClient removes a client by its instance name.
 func (op *MessageOperator) removeConnectedClient(clientId string) {
-	var instances []*ConnectedClient
-	for _, inst := range op.instances {
-		if inst.instanceName != clientId {
-			instances = append(instances, inst)
+	op.clientConnectionQueue.Enqueue(func() {
+
+		var instances []*ConnectedClient
+		for _, inst := range op.instances {
+			if inst.instanceName != clientId {
+				instances = append(instances, inst)
+			}
 		}
-	}
-	op.instances = instances
+		op.instances = instances
+	})
 }
 
 // addEvent queues an event message.
