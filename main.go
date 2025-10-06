@@ -28,7 +28,7 @@ func main() {
 	}
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
-	go mainOperato.LoopClientConnections()
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

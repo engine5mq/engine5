@@ -45,13 +45,17 @@ func (op *MessageOperator) LoopMessages() {
 func (op *MessageOperator) LoopClientConnections() {
 	for {
 		select {
-		case change := <-op.clientConnectChangeGate:
-			if change.alive {
-				op.addConnectedClientRaw(change.client)
-			} else {
-				op.removeConnectedClientRaw(change.client.instanceName)
+		case change, has := <-op.clientConnectChangeGate:
+			if has {
+				if change.alive {
+					op.addConnectedClientRaw(change.client)
+				} else {
+					op.removeConnectedClientRaw(change.client.instanceName)
+				}
 			}
 		default:
+			return
+
 			// Non-blocking select
 		}
 
@@ -162,7 +166,10 @@ func (op *MessageOperator) respondRequest(messageIncoming Message) {
 }
 
 func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
-	op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: true}
+	go func() {
+		op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: true}
+	}()
+	go op.LoopClientConnections()
 }
 
 // addConnectedClient adds a new client, ensuring unique instance names.
@@ -180,7 +187,10 @@ func (op *MessageOperator) addConnectedClientRaw(client *ConnectedClient) {
 }
 
 func (op *MessageOperator) removeConnectedClient(client *ConnectedClient) {
-	op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: false}
+	go func() {
+		op.clientConnectChangeGate <- &ClientConnectionStatusChange{client: client, alive: false}
+	}()
+	go op.LoopClientConnections()
 }
 
 // removeConnectedClient removes a client by its instance name.
