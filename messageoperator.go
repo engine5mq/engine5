@@ -28,6 +28,16 @@ type MessageOperator struct {
 	ongoingRequests               map[string]*OngoingRequest
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
 	clientConnectionQueue         *TaskQueue
+	haveNewRequests               chan bool
+}
+
+func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
+	go func() {
+		op.requestGate <- &RequestGateObject{rescan: true}
+	}()
+	go func() {
+		op.haveNewRequests <- true
+	}()
 }
 
 // LoopMessages listens for event messages and publishes them.
@@ -40,9 +50,17 @@ func (op *MessageOperator) LoopMessages() {
 // LoopRequests handles distributing responses and received requests.
 func (op *MessageOperator) LoopRequests() {
 	for {
-		op.DistrubuteResponses()
-		op.DistrubuteReceivedRequests()
+		for range op.haveNewRequests {
+			for {
+				op.DistrubuteReceivedRequests()
+				op.DistrubuteResponses()
+				if len(op.ongoingRequests) == 0 {
+					break
+				}
+			}
+		}
 	}
+
 }
 
 // DistrubuteResponses processes incoming requests and responses.
@@ -132,7 +150,12 @@ func (op *MessageOperator) SelectIndex(mappingName string, maxLength int) int {
 
 // addRequest queues a new request.
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
-	op.requestGate <- &RequestGateObject{by: clientRequesting, requestMessage: &message}
+	go func() {
+		op.requestGate <- &RequestGateObject{by: clientRequesting, requestMessage: &message}
+	}()
+	go func() {
+		op.haveNewRequests <- true
+	}()
 }
 
 // respondRequest queues a response to a request.

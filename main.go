@@ -25,6 +25,7 @@ func main() {
 		requestGate:                   make(chan *RequestGateObject),
 		instanceGroupSelectionIndexes: make(map[string]*InstanceGroupIndexSelection),
 		clientConnectionQueue:         NewTaskQueue(1),
+		haveNewRequests:               make(chan bool),
 	}
 	go mainOperato.LoopMessages()
 	go mainOperato.LoopRequests()
