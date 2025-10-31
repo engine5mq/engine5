@@ -7,7 +7,7 @@ const (
 )
 
 type Message struct {
-	content                 string
+	content                 []string
 	id                      string
 	targetSubjectName       string
 	targetInstanceGroupName string
