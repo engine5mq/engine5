@@ -34,10 +34,11 @@ type MessageOperator struct {
 func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
 	go func() {
 		op.requestGate <- &RequestGateObject{rescan: true}
-	}()
-	go func() {
 		op.haveNewRequests <- true
+
 	}()
+	// go func() {
+	// }()
 }
 
 // LoopMessages listens for event messages and publishes them.
@@ -50,15 +51,11 @@ func (op *MessageOperator) LoopMessages() {
 // LoopRequests handles distributing responses and received requests.
 func (op *MessageOperator) LoopRequests() {
 	for {
-		for range op.haveNewRequests {
-			for {
-				op.DistrubuteReceivedRequests()
-				op.DistrubuteResponses()
-				if len(op.ongoingRequests) == 0 {
-					break
-				}
-			}
-		}
+		op.DistrubuteReceivedRequests()
+		op.DistrubuteResponses()
+		// if len(op.ongoingRequests) == 0 {
+		// 	break
+		// }
 	}
 
 }
@@ -152,8 +149,6 @@ func (op *MessageOperator) SelectIndex(mappingName string, maxLength int) int {
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
 	go func() {
 		op.requestGate <- &RequestGateObject{by: clientRequesting, requestMessage: &message}
-	}()
-	go func() {
 		op.haveNewRequests <- true
 	}()
 }
