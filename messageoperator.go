@@ -38,13 +38,13 @@ func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
 	// go func() {
 	// 	op.requestGate <- &RequestGateObject{rescan: true}
 	// }()
+	select {
+	case op.haveNewRequests <- struct{}{}:
+	default:
+		// Zaten bir signal var, yeni signal gerekmiyor
+	}
+	// go func()
 
-	// go func() {
-	// 	select {
-	// 	case op.haveNewRequests <- struct{}{}:
-	// 	default:
-	// 		// Zaten bir signal var, yeni signal gerekmiyor
-	// 	}
 	// }()
 }
 
