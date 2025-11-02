@@ -61,9 +61,9 @@ func (op *MessageOperator) LoopRequests() {
 		<-op.haveNewRequests // Signal bekle
 
 		// Varsa ekstra sinyalleri temizle (coalescing)
-		// for len(op.haveNewRequests) > 0 {
-		// 	<-op.haveNewRequests
-		// }
+		for len(op.haveNewRequests) > 0 {
+			<-op.haveNewRequests
+		}
 
 		// Tüm istekleri işle
 		for {
