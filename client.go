@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
@@ -100,7 +101,8 @@ func (connCl *ConnectedClient) WriterLoop() {
 	ct := 0
 	for {
 		for v := range connCl.writeQueue {
-			connCl.connection.Write(append(v, 4))
+			// Length-prefix zaten toMsgPak() içinde eklendi
+			connCl.connection.Write(v)
 			ct++
 			// println("Write count: (" + connCl.instanceName + ") " + strconv.Itoa(ct))
 		}
@@ -113,34 +115,37 @@ func (connCl *ConnectedClient) ReaderLoop() {
 	defer connCl.Die()
 	reader := bufio.NewReader(connCl.connection)
 
-	bytels := []byte{}
 	for {
-		// Gelen byteları sürekli okur. Taa ki 0x04'e kadar
-		byteReaded, err := reader.ReadByte()
-		if err == nil {
-			if byteReaded == 4 {
-				pl, err2 := parsePayloadMsgPack(bytels)
-				if err2 != nil {
-					println("Error while reading and waiting payload: ", err2)
-				} else {
-					connCl.ReviewPayload(pl)
-					if connCl.died {
-						break
-					}
-				}
-				bytels = []byte{}
-			} else {
-				bytels = append(bytels, byteReaded)
-
-			}
-		} else {
-			println("Error: ", err)
+		// Length-prefixed protocol: Önce 4 byte uzunluk bilgisini oku
+		lengthBytes := make([]byte, 4)
+		_, err := reader.Read(lengthBytes)
+		if err != nil {
+			println("Error reading length prefix: ", err)
 			break
 		}
 
-	}
-	// pl := connCl.readPayload()
+		// Uzunluk bilgisini uint32'ye çevir
+		messageLength := binary.BigEndian.Uint32(lengthBytes)
 
+		// Belirtilen uzunlukta msgpack verisini oku
+		msgpackData := make([]byte, messageLength)
+		_, err = reader.Read(msgpackData)
+		if err != nil {
+			println("Error reading msgpack data: ", err)
+			break
+		}
+
+		// Msgpack verisini parse et
+		pl, err2 := parsePayloadMsgPack(msgpackData)
+		if err2 != nil {
+			println("Error while parsing payload: ", err2)
+		} else {
+			connCl.ReviewPayload(pl)
+			if connCl.died {
+				break
+			}
+		}
+	}
 }
 
 func (connCl *ConnectedClient) Listen(subjectName string) {
