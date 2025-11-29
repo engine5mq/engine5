@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -66,19 +65,19 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.Write(Payload{Command: CtRecieved, Subject: pl.Subject})
 		go connCl.operator.rescanRequestsForClient(connCl)
 	case CtEvent:
-		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + strings.Join(pl.Content, "") + ", id: " + pl.MessageId)
+		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
 		msg := MessageFromPayload(pl)
 		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtRequest:
-		fmt.Println("Client " + connCl.instanceName + " sent a request. " + " content: " + strings.Join(pl.Content, "") + ", id: " + pl.MessageId + ", subject " + pl.Subject)
+		fmt.Println("Client " + connCl.instanceName + " sent a request. " + " content: " + pl.Content + ", id: " + pl.MessageId + ", subject " + pl.Subject)
 		msg := MessageFromPayload(pl)
 		connCl.operator.addRequest(msg, connCl)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtResponse:
-		fmt.Println("Client " + connCl.instanceName + " responsed a request. " + " content: " + strings.Join(pl.Content, "") + ", responseOf: " + pl.ResponseOfMessageId)
+		fmt.Println("Client " + connCl.instanceName + " responsed a request. " + " content: " + pl.Content + ", responseOf: " + pl.ResponseOfMessageId)
 		msg := MessageFromPayload(pl)
 		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})

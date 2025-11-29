@@ -52,7 +52,7 @@ const (
 type Payload struct {
 	Command string `json:"command"`
 	// Event, Request, Response, Connecton Error
-	Content []string `json:"content"`
+	Content string `json:"content"`
 	// Event, Request, Response, Connecton Error
 	Subject string `json:"subject"`
 	// Connect
