@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/binary"
+
 	"github.com/shamaton/msgpack"
 )
 
@@ -50,7 +52,7 @@ const (
 type Payload struct {
 	Command string `json:"command"`
 	// Event, Request, Response, Connecton Error
-	Content []string `json:"content"`
+	Content string `json:"content"`
 	// Event, Request, Response, Connecton Error
 	Subject string `json:"subject"`
 	// Connect
@@ -92,5 +94,9 @@ func (person *Payload) toMsgPak() (p []byte, e error) {
 		return nil, err
 	}
 
-	return data, nil
+	// Length-prefixed protocol: 4 byte uzunluk bilgisi + msgpack verisi
+	lengthPrefix := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthPrefix, uint32(len(data)))
+
+	return append(lengthPrefix, data...), nil
 }
