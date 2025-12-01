@@ -116,23 +116,48 @@ func (connCl *ConnectedClient) ReaderLoop() {
 
 	for {
 		// Length-prefixed protocol: Önce 4 byte uzunluk bilgisini oku
+		lengthBytesRemaining := 4
 		lengthBytes := make([]byte, 4)
-		_, err := reader.Read(lengthBytes)
-		if err != nil {
-			println("Error reading length prefix: ", err)
-			break
+		// _, err := reader.Read(lengthBytes)
+		// if err != nil {
+		// 	println("Error reading length prefix: ", err)
+		// 	break
+		// }
+		for lengthBytesRemaining > 0 {
+			n, err := reader.Read(lengthBytes[4-lengthBytesRemaining:])
+
+			if err != nil {
+				if (err.Error() == "EOF") || (err.Error() == "read tcp "+connCl.connection.LocalAddr().String()+"->"+connCl.connection.RemoteAddr().String()+": use of closed network connection") {
+					println("Connection closed by client: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+				println("Error reading length prefix: ", err.Error())
+				break
+			}
+			lengthBytesRemaining -= n
 		}
 
 		// Uzunluk bilgisini uint32'ye çevir
 		messageLength := binary.BigEndian.Uint32(lengthBytes)
 
 		// Belirtilen uzunlukta msgpack verisini oku
-		msgpackData := make([]byte, messageLength)
-		_, err = reader.Read(msgpackData)
-		if err != nil {
-			println("Error reading msgpack data: ", err)
-			break
+		remainingLength := int(messageLength)
+		msgpackData := make([]byte, remainingLength)
+		// _, err = reader.Read(msgpackData)
+		for remainingLength > 0 {
+			n, err := reader.Read(msgpackData[messageLength-uint32(remainingLength):])
+			if err != nil {
+				println("Error reading msgpack data: ", err)
+				break
+			}
+			remainingLength -= n
 		}
+
+		// if err != nil {
+		// 	println("Error reading msgpack data: ", err)
+		// 	break
+		// }
 
 		// Msgpack verisini parse et
 		pl, err2 := parsePayloadMsgPack(msgpackData)
@@ -157,6 +182,9 @@ func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 	return hasKey && hasSubject
 }
 
+/**
+* Client bağlantısını sonlandırır
+ */
 func (connCl *ConnectedClient) Die() {
 	if connCl.connection != nil && !connCl.died {
 		defer connCl.operator.removeConnectedClient(connCl.instanceName)
