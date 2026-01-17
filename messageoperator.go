@@ -28,6 +28,7 @@ type MessageOperator struct {
 	ongoingRequests               map[string]*OngoingRequest
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
 	clientConnectionQueue         *TaskQueue
+	authConfig                    *AuthConfig
 }
 
 // LoopMessages listens for event messages and publishes them.

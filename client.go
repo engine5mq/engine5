@@ -17,6 +17,7 @@ type ConnectedClient struct {
 	writing           bool
 	writeQueue        chan []byte
 	instanceGroup     string
+	authClient        *AuthenticatedClient
 }
 
 func (connCl *ConnectedClient) SetOperator(operator *MessageOperator) {

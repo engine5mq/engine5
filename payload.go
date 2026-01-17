@@ -36,6 +36,11 @@ const (
 	CtClose = "CLOSE"
 	// Herhangi bir hata durumunda çift durumda belli koşullarla
 	CtError = "ERROR"
+	// Authentication commands
+	CtAuth         = "AUTH"
+	CtAuthSuccess  = "AUTH_SUCCESS"
+	CtAuthError    = "AUTH_ERROR"
+	CtUnauthorized = "UNAUTHORIZED"
 )
 
 /*
