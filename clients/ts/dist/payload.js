@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CtClose = exports.CtListen = exports.CtResponse = exports.CtRequest = exports.CtEvent = exports.CtReceived = exports.CtConnectSuccess = exports.CtConnect = void 0;
+exports.CtConnect = "CONNECT";
+exports.CtConnectSuccess = "CONNECT_SUCCESS";
+exports.CtReceived = "RECEIVED";
+exports.CtEvent = "EVENT";
+exports.CtRequest = "REQUEST";
+exports.CtResponse = "RESPONSE";
+exports.CtListen = "LISTEN";
+exports.CtClose = "CLOSE";
