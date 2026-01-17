@@ -11,7 +11,7 @@ RUN apk update && apk add --no-cache \
 
 # Create app user for security
 RUN adduser -D -g '' engine5user
-
+RUN apk --no-cache add ca-certificates
 # Set destination for COPY
 WORKDIR /app
 
@@ -61,4 +61,4 @@ EXPOSE 3535
 
 # Run the binary
 CMD ["/engine5"]
-c
+# End of Dockerfile

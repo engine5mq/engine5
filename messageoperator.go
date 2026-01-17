@@ -29,6 +29,22 @@ type MessageOperator struct {
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
 	clientConnectionQueue         *TaskQueue
 	authConfig                    *AuthConfig
+	haveNewRequests               chan struct{} // bool yerine struct{} kullan
+}
+
+func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
+	// noop for now
+	// go func() {
+	// 	op.requestGate <- &RequestGateObject{rescan: true}
+	// }()
+	select {
+	case op.haveNewRequests <- struct{}{}:
+	default:
+		// Zaten bir signal var, yeni signal gerekmiyor
+	}
+	// go func()
+
+	// }()
 }
 
 // LoopMessages listens for event messages and publishes them.
@@ -41,8 +57,21 @@ func (op *MessageOperator) LoopMessages() {
 // LoopRequests handles distributing responses and received requests.
 func (op *MessageOperator) LoopRequests() {
 	for {
-		op.DistrubuteResponses()
-		op.DistrubuteReceivedRequests()
+		<-op.haveNewRequests // Signal bekle
+
+		// Varsa ekstra sinyalleri temizle (coalescing)
+		for len(op.haveNewRequests) > 0 {
+			<-op.haveNewRequests
+		}
+
+		// Tüm istekleri işle
+		for {
+			op.DistrubuteReceivedRequests()
+			op.DistrubuteResponses()
+			if len(op.ongoingRequests) == 0 {
+				break
+			}
+		}
 	}
 }
 
@@ -133,7 +162,17 @@ func (op *MessageOperator) SelectIndex(mappingName string, maxLength int) int {
 
 // addRequest queues a new request.
 func (op *MessageOperator) addRequest(message Message, clientRequesting *ConnectedClient) {
+	// Goroutine'ları basitleştir
+
 	op.requestGate <- &RequestGateObject{by: clientRequesting, requestMessage: &message}
+
+	// Non-blocking signal gönder
+	select {
+	case op.haveNewRequests <- struct{}{}:
+	default:
+		// Zaten bir signal var, yeni signal gerekmiyor
+	}
+
 }
 
 // respondRequest queues a response to a request.

@@ -49,10 +49,11 @@ func main() {
 		instances:                     []*ConnectedClient{},
 		waiting:                       make(chan Message),
 		ongoingRequests:               make(map[string]*OngoingRequest),
-		requestGate:                   make(chan *RequestGateObject),
+		requestGate:                   make(chan *RequestGateObject, 100),
 		instanceGroupSelectionIndexes: make(map[string]*InstanceGroupIndexSelection),
 		clientConnectionQueue:         NewTaskQueue(1),
 		authConfig:                    authConfig,
+		haveNewRequests:               make(chan struct{}, 1),
 	}
 
 	go mainOperator.LoopMessages()

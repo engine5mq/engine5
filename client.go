@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"net"
 
@@ -62,8 +63,8 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	case CtListen:
 		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
 		connCl.Listen(pl.Subject)
-		connCl.operator.requestGate <- &RequestGateObject{rescan: true}
 		connCl.Write(Payload{Command: CtRecieved, Subject: pl.Subject})
+		go connCl.operator.rescanRequestsForClient(connCl)
 	case CtEvent:
 		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
 		msg := MessageFromPayload(pl)
@@ -100,7 +101,8 @@ func (connCl *ConnectedClient) WriterLoop() {
 	ct := 0
 	for {
 		for v := range connCl.writeQueue {
-			connCl.connection.Write(append(v, 4))
+			// Length-prefix zaten toMsgPak() içinde eklendi
+			connCl.connection.Write(v)
 			ct++
 			// println("Write count: (" + connCl.instanceName + ") " + strconv.Itoa(ct))
 		}
@@ -113,34 +115,62 @@ func (connCl *ConnectedClient) ReaderLoop() {
 	defer connCl.Die()
 	reader := bufio.NewReader(connCl.connection)
 
-	bytels := []byte{}
 	for {
-		// Gelen byteları sürekli okur. Taa ki 0x04'e kadar
-		byteReaded, err := reader.ReadByte()
-		if err == nil {
-			if byteReaded == 4 {
-				pl, err2 := parsePayloadMsgPack(bytels)
-				if err2 != nil {
-					println("Error while reading and waiting payload: ", err2)
-				} else {
-					connCl.ReviewPayload(pl)
-					if connCl.died {
-						break
-					}
-				}
-				bytels = []byte{}
-			} else {
-				bytels = append(bytels, byteReaded)
+		// Length-prefixed protocol: Önce 4 byte uzunluk bilgisini oku
+		lengthBytesRemaining := 4
+		lengthBytes := make([]byte, 4)
+		// _, err := reader.Read(lengthBytes)
+		// if err != nil {
+		// 	println("Error reading length prefix: ", err)
+		// 	break
+		// }
+		for lengthBytesRemaining > 0 {
+			n, err := reader.Read(lengthBytes[4-lengthBytesRemaining:])
 
+			if err != nil {
+				if (err.Error() == "EOF") || (err.Error() == "read tcp "+connCl.connection.LocalAddr().String()+"->"+connCl.connection.RemoteAddr().String()+": use of closed network connection") {
+					println("Connection closed by client: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+				println("Error reading length prefix: ", err.Error())
+				break
 			}
-		} else {
-			println("Error: ", err)
-			break
+			lengthBytesRemaining -= n
 		}
 
-	}
-	// pl := connCl.readPayload()
+		// Uzunluk bilgisini uint32'ye çevir
+		messageLength := binary.BigEndian.Uint32(lengthBytes)
 
+		// Belirtilen uzunlukta msgpack verisini oku
+		remainingLength := int(messageLength)
+		msgpackData := make([]byte, remainingLength)
+		// _, err = reader.Read(msgpackData)
+		for remainingLength > 0 {
+			n, err := reader.Read(msgpackData[messageLength-uint32(remainingLength):])
+			if err != nil {
+				println("Error reading msgpack data: ", err)
+				break
+			}
+			remainingLength -= n
+		}
+
+		// if err != nil {
+		// 	println("Error reading msgpack data: ", err)
+		// 	break
+		// }
+
+		// Msgpack verisini parse et
+		pl, err2 := parsePayloadMsgPack(msgpackData)
+		if err2 != nil {
+			println("Error while parsing payload: ", err2)
+		} else {
+			connCl.ReviewPayload(pl)
+			if connCl.died {
+				break
+			}
+		}
+	}
 }
 
 func (connCl *ConnectedClient) Listen(subjectName string) {
@@ -153,6 +183,9 @@ func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 	return hasKey && hasSubject
 }
 
+/**
+* Client bağlantısını sonlandırır
+ */
 func (connCl *ConnectedClient) Die() {
 	if connCl.connection != nil && !connCl.died {
 		defer connCl.operator.removeConnectedClient(connCl.instanceName)
