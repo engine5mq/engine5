@@ -43,130 +43,165 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Engine5Connection = void 0;
-// import net = require("net"); // import 'net' module
 const net = __importStar(require("net"));
 const msgpack_1 = require("@msgpack/msgpack");
-const dynamic_queue_1 = require("@ubs-platform/dynamic-queue");
+const dynamic_queue_1 = require("./dynamic-queue");
 const rxjs_1 = require("rxjs");
+const node_tls_1 = require("node:tls");
 class Engine5Connection {
-    // onGoingRequests: Map<string, ((a: any) => any)[]> = new Map();
-    constructor(host, port, instanceGroup, instanceId) {
+    constructor(host, port, instanceGroup, instanceId, tlsEnabled = false) {
         this.host = host;
         this.port = port;
         this.instanceGroup = instanceGroup;
         this.instanceId = instanceId;
+        this.tlsEnabled = tlsEnabled;
         this.tcpClient = new net.Socket();
-        this.connectionStatus = 'CLOSED';
+        this.connectionStatus = "CLOSED";
         this.connectionStatusSubject = new rxjs_1.ReplaySubject(1);
         this.listeningSubjectCallbacks = {};
         this.ongoingRequestsToComplete = {};
         this.queue = new dynamic_queue_1.DynamicQueue();
         this.reconnectOnFail = true;
         this.tcpClientEventsRegistered = false;
-        this.connectionStatusSubject.next('CLOSED');
+        this.reconnectInterval = null;
+        this.connectionStatusSubject.next("CLOSED");
         this.queue.push(() => __awaiter(this, void 0, void 0, function* () {
             yield this.runAtWhenConnected(() => {
-                'This is for prevent add some events or requests before connection';
+                // Initialize connection preparation
             });
         }));
-        setInterval(() => {
-            if (this.reconnectOnFail && this.connectionStatus == 'CLOSED') {
-                console.info('Trying to establish a connection');
-                this.init()
-                    .then()
-                    .catch((e) => console.error(e));
+        this.startReconnectTimer();
+    }
+    startReconnectTimer() {
+        this.reconnectInterval = setInterval(() => {
+            if (this.reconnectOnFail && this.connectionStatus === "CLOSED") {
+                console.info("Attempting to reconnect...");
+                this.init().catch((error) => {
+                    console.error("Reconnection failed:", error);
+                });
             }
         }, 5000);
     }
-    runAtWhenConnected(ac) {
-        let completed = false;
-        return new Promise((ok, fail) => {
-            let subscription = null;
-            subscription = this.connectionStatusSubject.subscribe((a) => __awaiter(this, void 0, void 0, function* () {
-                if (!completed && a == 'CONNECTED') {
-                    completed = true;
-                    subscription === null || subscription === void 0 ? void 0 : subscription.unsubscribe();
-                    try {
-                        const result = yield ac();
-                        ok(result);
+    runAtWhenConnected(action) {
+        return new Promise((resolve, reject) => {
+            if (this.connectionStatus === "CONNECTED") {
+                try {
+                    const result = action();
+                    if (result instanceof Promise) {
+                        result.then(resolve).catch(reject);
                     }
-                    catch (e) {
-                        fail(e);
+                    else {
+                        resolve(result);
                     }
                 }
-                else if (completed) {
-                    subscription === null || subscription === void 0 ? void 0 : subscription.unsubscribe();
+                catch (error) {
+                    reject(error);
+                }
+                return;
+            }
+            const subscription = this.connectionStatusSubject.subscribe((status) => __awaiter(this, void 0, void 0, function* () {
+                if (status === "CONNECTED") {
+                    subscription.unsubscribe();
+                    try {
+                        const result = yield action();
+                        resolve(result);
+                    }
+                    catch (error) {
+                        reject(error);
+                    }
                 }
             }));
         });
     }
-    writePayload(p) {
+    writePayload(payload) {
         return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((ok, fail) => {
+            return new Promise((resolve, reject) => {
                 this.queue.push(() => {
                     try {
-                        // First 4 bytes are for length
-                        const msgpackData = Buffer.from((0, msgpack_1.encode)(p));
+                        const msgpackData = Buffer.from((0, msgpack_1.encode)(payload));
                         const lengthPrefix = Buffer.alloc(4);
                         lengthPrefix.writeUInt32BE(msgpackData.length, 0);
-                        const full = Buffer.concat([lengthPrefix, msgpackData]);
-                        this.tcpClient.write(full, (e) => {
-                            if (e)
-                                fail(e);
-                            else
-                                ok(this);
+                        const fullMessage = Buffer.concat([lengthPrefix, msgpackData]);
+                        this.tcpClient.write(fullMessage, (error) => {
+                            if (error) {
+                                console.error("Failed to write payload:", error);
+                                reject(error);
+                            }
+                            else {
+                                resolve(this);
+                            }
                         });
                     }
                     catch (error) {
-                        console.error(error);
+                        console.error("Error encoding payload:", error);
+                        reject(error);
                     }
                 });
             });
         });
     }
-    listen(subject, cb) {
+    listen(subject, callback) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.info('Listening Subject: ' + subject);
+            if (!subject) {
+                throw new Error("Subject cannot be empty");
+            }
+            console.info(`Listening to subject: ${subject}`);
             this.queue.push(() => __awaiter(this, void 0, void 0, function* () {
-                yield this.writeListenCommand(subject);
-                const ls = this.listeningSubjectCallbacks[subject] || [];
-                ls.push(cb);
-                this.listeningSubjectCallbacks[subject] = ls;
+                try {
+                    yield this.writeListenCommand(subject);
+                    const callbacks = this.listeningSubjectCallbacks[subject] || [];
+                    callbacks.push(callback);
+                    this.listeningSubjectCallbacks[subject] = callbacks;
+                }
+                catch (error) {
+                    console.error(`Failed to listen to subject ${subject}:`, error);
+                    throw error;
+                }
             }));
         });
     }
     writeListenCommand(subject) {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.writePayload({
-                Command: 'LISTEN',
+                Command: "LISTEN",
                 Subject: subject,
-                MessageId: this.messageIdGenerate(),
+                MessageId: this.generateMessageId(),
             });
         });
     }
-    messageIdGenerate() {
-        return Date.now() + '_' + (Math.random() * 100000).toFixed();
+    generateMessageId() {
+        return `${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
     }
     sendRequest(subject, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            const messageId = this.messageIdGenerate();
-            if (!(this.connectionStatus == 'CONNECTED')) {
+            if (!subject) {
+                throw new Error("Subject cannot be empty");
+            }
+            const messageId = this.generateMessageId();
+            if (this.connectionStatus !== "CONNECTED") {
                 yield this.init();
             }
             yield this.writePayload({
-                Command: 'REQUEST',
+                Command: "REQUEST",
                 Subject: subject,
                 Content: this.stringifyData(data),
                 MessageId: messageId,
             });
-            return new Promise((ok, fail) => {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    delete this.ongoingRequestsToComplete[messageId];
+                    reject(new Error(`Request timeout for subject: ${subject}`));
+                }, 30000); // 30 second timeout
                 this.ongoingRequestsToComplete[messageId] = (response) => {
-                    if (response.Content) {
-                        const jsonObj = this.parseData(response.Content);
-                        ok(jsonObj);
+                    clearTimeout(timeout);
+                    try {
+                        const result = response.Content
+                            ? this.parseData(response.Content)
+                            : undefined;
+                        resolve(result);
                     }
-                    else {
-                        ok(undefined);
+                    catch (error) {
+                        reject(error);
                     }
                 };
             });
@@ -174,34 +209,23 @@ class Engine5Connection {
     }
     sendEvent(subject, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            // this.runAtWhenConnected(async () => {
-            // })
-            // this.queue.push(() => {
-            //     return new Promise((ok) => {
-            //         this.connectionReady.subscribe((a) => {
-            //             exec(`kdialog --msgbox "${a}"`)
-            //             ok(null)
-            //         })
-            //     })
-            // })
+            if (!subject) {
+                throw new Error("Subject cannot be empty");
+            }
+            if (this.connectionStatus !== "CONNECTED") {
+                throw new Error("Not connected to the server");
+            }
             yield this.writePayload({
-                Command: 'EVENT',
+                Command: "EVENT",
                 Subject: subject,
                 Content: this.stringifyData(data),
             });
         });
     }
-    // async sendEventStr(subject: string, data: string) {
-    //   await this.writePayload({
-    //     Command: "LISTEN",
-    //     Subject: subject,
-    //     Content: data,
-    //   });
-    // }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((ok, fail) => {
-                if (this.connectionStatus == 'CLOSED') {
+                if (this.connectionStatus == "CLOSED") {
                     this._init((v) => {
                         ok(v);
                     });
@@ -215,12 +239,20 @@ class Engine5Connection {
         });
     }
     _init(ok) {
-        this.connectionStatusSubject.next('CONNECTING');
-        this.connectionStatus = 'CONNECTING';
-        console.info('Connecting to server');
+        if (this.tlsEnabled) {
+            this.tcpClient = new node_tls_1.TLSSocket(new net.Socket(), {
+                rejectUnauthorized: false,
+            });
+        }
+        this.connectionStatusSubject.next("CONNECTING");
+        this.connectionStatus = "CONNECTING";
+        console.info("Connecting to server");
         const client = this.tcpClient;
         this.registerEvents(client, ok);
-        client.connect(parseInt(this.port), this.host, () => {
+        client.connect({
+            host: this.host,
+            port: Number(this.port),
+        }, () => {
             //   client.write("I am Chappie");
             this.startConnection();
         });
@@ -231,9 +263,7 @@ class Engine5Connection {
         let currentBuff = [];
         let sizeBytes = [];
         let incomingLength = 0;
-        let sizePrefixBuffer = null;
-        client.on('data', (data) => {
-            // console.info("Gelen data", data);
+        client.on("data", (data) => {
             this.queue.push(() => {
                 let offset = 0;
                 while (offset < data.length) {
@@ -241,7 +271,7 @@ class Engine5Connection {
                         // Read size prefix bytes
                         sizeBytes.push(data[offset]);
                         offset++;
-                        if (sizeBytes.length == 4) {
+                        if (sizeBytes.length === 4) {
                             incomingLength = Buffer.from(sizeBytes).readUInt32BE(0);
                         }
                     }
@@ -252,7 +282,7 @@ class Engine5Connection {
                         const bytesToRead = Math.min(bytesNeeded, bytesAvailable);
                         currentBuff.push(...data.subarray(offset, offset + bytesToRead));
                         offset += bytesToRead;
-                        if (currentBuff.length == incomingLength) {
+                        if (currentBuff.length === incomingLength) {
                             // We have a complete message
                             const messageBuffer = Buffer.from(currentBuff);
                             this.processIncomingData(messageBuffer, ok);
@@ -263,62 +293,29 @@ class Engine5Connection {
                         }
                     }
                 }
-                // while
-                // if (sizeBytes.length < 4) {
-                //     // Read size prefix bytes
-                //     for (let i = 0; i < data.length && sizeBytes.length < 4; i++) {
-                // let offset = 0;
-                while (offset < data.length) {
-                    if (sizePrefixBuffer === null) {
-                        // Read size prefix
-                        sizePrefixBuffer = data.slice(offset, offset + 4);
-                        offset += 4;
-                    }
-                    const messageSize = sizePrefixBuffer.readUInt32BE(0);
-                    if (data.length - offset >= messageSize) {
-                        // We have a complete message
-                        const messageBuffer = data.slice(offset, offset + messageSize);
-                        this.processIncomingData(messageBuffer, ok);
-                        offset += messageSize;
-                        sizePrefixBuffer = null; // Reset for next message
-                    }
-                    else {
-                        // Not enough data for a complete message
-                        break;
-                    }
-                }
-                // let newBuffData = [...currentBuff, ...data];
-                // let splitByteIndex = newBuffData.indexOf(4);
-                // while (splitByteIndex > -1) {
-                //     const popped = newBuffData.slice(0, splitByteIndex);
-                //     this.processIncomingData(popped, ok);
-                //     newBuffData = newBuffData.slice(splitByteIndex + 1);
-                //     splitByteIndex = newBuffData.indexOf(4);
-                // }
-                // currentBuff = newBuffData;
             });
         });
-        client.on('error', (err) => {
+        client.on("error", (err) => {
             console.error(`Error occured ${err}`);
         });
-        client.on('close', () => __awaiter(this, void 0, void 0, function* () {
-            this.connectionStatus = 'CLOSED';
-            this.connectionStatusSubject.next('CLOSED');
-            console.log('Connection closed');
+        client.on("close", () => __awaiter(this, void 0, void 0, function* () {
+            this.connectionStatus = "CLOSED";
+            this.connectionStatusSubject.next("CLOSED");
+            console.log("Connection closed");
         }));
         this.tcpClientEventsRegistered = true;
     }
     startConnection() {
         this.writePayload({
-            Command: 'CONNECT',
-            InstanceId: this.instanceId || '',
+            Command: "CONNECT",
+            InstanceId: this.instanceId || "",
             InstanceGroup: this.instanceGroup || this.instanceId,
         });
         const alreadyListeningSubjects = Object.keys(this.listeningSubjectCallbacks);
         for (let alsIndex = 0; alsIndex < alreadyListeningSubjects.length; alsIndex++) {
             const als = alreadyListeningSubjects[alsIndex];
             this.writeListenCommand(als)
-                .then(() => console.info('Listening subject again: ' + als))
+                .then(() => console.info("Listening subject again: " + als))
                 .catch(console.error);
         }
     }
@@ -326,28 +323,28 @@ class Engine5Connection {
         return __awaiter(this, void 0, void 0, function* () {
             const decoded = (0, msgpack_1.decode)(data);
             // console.info(decoded)
-            if (decoded.Command == 'CONNECT_SUCCESS') {
-                this.connectionStatus = 'CONNECTED';
-                this.connectionStatusSubject.next('CONNECTED');
+            if (decoded.Command == "CONNECT_SUCCESS") {
+                this.connectionStatus = "CONNECTED";
+                this.connectionStatusSubject.next("CONNECTED");
                 this.instanceId = decoded.InstanceId;
                 this.instanceGroup = decoded.InstanceGroup;
                 promiseResolveFunc === null || promiseResolveFunc === void 0 ? void 0 : promiseResolveFunc(this);
                 // this.reconnectOnFail = true;
-                console.info('Connected Successfully');
+                console.info("Connected Successfully");
             }
-            else if (decoded.Command == 'EVENT') {
-                console.info('Event recieved', decoded.Subject);
+            else if (decoded.Command == "EVENT") {
+                console.info("Event recieved", decoded.Subject);
                 this.processReceivedEvent(decoded);
             }
-            else if (decoded.Command == 'REQUEST') {
-                console.info('Request recieved: ', decoded.Subject);
+            else if (decoded.Command == "REQUEST") {
+                console.info("Request recieved: ", decoded.Subject);
                 try {
                     const ac = yield this.listeningSubjectCallbacks[decoded.Subject][0](this.parseData(decoded.Content));
                     // this.ongoingRequestsToComplete[decoded.MessageId!](ac)
                     yield this.writePayload({
-                        Command: 'RESPONSE',
+                        Command: "RESPONSE",
                         Content: this.stringifyData(ac),
-                        MessageId: this.messageIdGenerate(),
+                        MessageId: this.generateMessageId(),
                         Subject: decoded.Subject,
                         ResponseOfMessageId: decoded.MessageId,
                     });
@@ -356,30 +353,34 @@ class Engine5Connection {
                     console.error(ex);
                 }
             }
-            else if (decoded.Command == 'RESPONSE') {
+            else if (decoded.Command == "RESPONSE") {
                 this.ongoingRequestsToComplete[decoded.ResponseOfMessageId](decoded);
             }
         });
     }
     parseData(dataString) {
-        if (dataString[0] == 'undefined')
+        if (dataString === "undefined" || dataString === "") {
             return undefined;
-        return JSON.parse(dataString);
+        }
+        try {
+            return JSON.parse(dataString);
+        }
+        catch (error) {
+            console.error("Failed to parse JSON data:", error);
+            return dataString; // Return original string if parsing fails
+        }
     }
-    stringifyData(ac) {
-        let a = JSON.stringify(ac);
-        // // her 1000 karakterde bir bölelim
-        // const chunkSize = 1000;
-        // const chunks: string[] = [];
-        // if (a?.length) {
-        //     for (let i = 0; i < a.length; i += chunkSize) {
-        //         chunks.push(a.substring(i, i + chunkSize));
-        //     }
-        // } else {
-        //     chunks.push('undefined');
-        // }
-        // stringleri bölmek şu anda '4' karakteri sorununa çözüm değil. Ancak ileride farklı bir protokole geçildiğinde sorun olmayacak.
-        return a;
+    stringifyData(data) {
+        if (data === undefined) {
+            return "undefined";
+        }
+        try {
+            return JSON.stringify(data);
+        }
+        catch (error) {
+            console.error("Failed to stringify data:", error);
+            return String(data);
+        }
     }
     processReceivedEvent(decoded) {
         const cbs = this.listeningSubjectCallbacks[decoded.Subject] || [];
@@ -390,9 +391,25 @@ class Engine5Connection {
     }
     close() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.info('E5JSCL - Connection is about to be closed');
+            console.info("Closing Engine5 connection...");
             this.reconnectOnFail = false;
-            yield this.writePayload({ Command: 'CLOSE' });
+            if (this.reconnectInterval) {
+                clearInterval(this.reconnectInterval);
+                this.reconnectInterval = null;
+            }
+            try {
+                if (this.connectionStatus === "CONNECTED") {
+                    yield this.writePayload({ Command: "CLOSE" });
+                }
+            }
+            catch (error) {
+                console.error("Error during close:", error);
+            }
+            finally {
+                this.tcpClient.destroy();
+                this.connectionStatus = "CLOSED";
+                this.connectionStatusSubject.next("CLOSED");
+            }
         });
     }
     static create(host, port, instanceGroup, instanceId) {

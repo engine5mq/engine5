@@ -33,6 +33,7 @@ openssl req -new -key server.key -out server.csr -subj "/C=TR/ST=Istanbul/L=Ista
 
 # Create server certificate extensions
 cat > server.ext << EOF
+[v3_req]
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment

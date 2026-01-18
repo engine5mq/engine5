@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -51,7 +50,7 @@ func (tc *TLSConfig) CreateTLSConfig() (*tls.Config, error) {
 
 	// Client certificate authentication
 	if tc.RequireAuth && tc.CAFile != "" {
-		caCert, err := ioutil.ReadFile(tc.CAFile)
+		caCert, err := os.ReadFile(tc.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA file: %v", err)
 		}
