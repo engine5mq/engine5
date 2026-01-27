@@ -44,17 +44,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Engine5Connection = void 0;
 const net = __importStar(require("net"));
+const tls = __importStar(require("node:tls"));
 const msgpack_1 = require("@msgpack/msgpack");
 const dynamic_queue_1 = require("./dynamic-queue");
 const rxjs_1 = require("rxjs");
-const node_tls_1 = require("node:tls");
 class Engine5Connection {
-    constructor(host, port, instanceGroup, instanceId, tlsEnabled = false) {
-        this.host = host;
-        this.port = port;
-        this.instanceGroup = instanceGroup;
-        this.instanceId = instanceId;
-        this.tlsEnabled = tlsEnabled;
+    constructor(connectOptions) {
+        var _a;
+        this.connectOptions = connectOptions;
         this.tcpClient = new net.Socket();
         this.connectionStatus = "CLOSED";
         this.connectionStatusSubject = new rxjs_1.ReplaySubject(1);
@@ -64,6 +61,13 @@ class Engine5Connection {
         this.reconnectOnFail = true;
         this.tcpClientEventsRegistered = false;
         this.reconnectInterval = null;
+        this.tlsEnabled = false;
+        this.host = connectOptions.host;
+        this.port = connectOptions.port;
+        this.instanceGroup = connectOptions.instanceGroup;
+        this.instanceId = connectOptions.instanceId;
+        this.tlsEnabled = (_a = connectOptions.tlsEnabled) !== null && _a !== void 0 ? _a : false;
+        this.tlsOptions = connectOptions.tlsOptions;
         this.connectionStatusSubject.next("CLOSED");
         this.queue.push(() => __awaiter(this, void 0, void 0, function* () {
             yield this.runAtWhenConnected(() => {
@@ -239,21 +243,36 @@ class Engine5Connection {
         });
     }
     _init(ok) {
-        if (this.tlsEnabled) {
-            this.tcpClient = new node_tls_1.TLSSocket(new net.Socket(), {
-                rejectUnauthorized: false,
-            });
-        }
+        var _a, _b, _c, _d, _e, _f, _g;
         this.connectionStatusSubject.next("CONNECTING");
         this.connectionStatus = "CONNECTING";
         console.info("Connecting to server");
+        if (this.tlsEnabled) {
+            const tlsSocket = tls.connect({
+                host: this.host,
+                port: Number(this.port),
+                ca: (_a = this.tlsOptions) === null || _a === void 0 ? void 0 : _a.ca,
+                cert: (_b = this.tlsOptions) === null || _b === void 0 ? void 0 : _b.cert,
+                key: (_c = this.tlsOptions) === null || _c === void 0 ? void 0 : _c.key,
+                servername: (_e = (_d = this.tlsOptions) === null || _d === void 0 ? void 0 : _d.servername) !== null && _e !== void 0 ? _e : this.host,
+                rejectUnauthorized: (_g = (_f = this.tlsOptions) === null || _f === void 0 ? void 0 : _f.rejectUnauthorized) !== null && _g !== void 0 ? _g : true,
+            });
+            this.tcpClient = tlsSocket;
+            this.tcpClientEventsRegistered = false;
+            this.registerEvents(tlsSocket, ok);
+            tlsSocket.once("secureConnect", () => {
+                this.startConnection();
+            });
+            return;
+        }
+        this.tcpClient = new net.Socket();
+        this.tcpClientEventsRegistered = false;
         const client = this.tcpClient;
         this.registerEvents(client, ok);
         client.connect({
             host: this.host,
             port: Number(this.port),
         }, () => {
-            //   client.write("I am Chappie");
             this.startConnection();
         });
     }
@@ -303,9 +322,28 @@ class Engine5Connection {
             this.connectionStatusSubject.next("CLOSED");
             console.log("Connection closed");
         }));
+        client.on("session", () => {
+            console.info("TLS session established");
+        });
         this.tcpClientEventsRegistered = true;
     }
     startConnection() {
+        var _a;
+        // if (this.connectionStatus != "CONNECTING") return;
+        if (this.tlsEnabled) {
+            const tlsSocket = this.tcpClient;
+            if (tlsSocket.authorizationError) {
+                if (((_a = this.tlsOptions) === null || _a === void 0 ? void 0 : _a.rejectUnauthorized) === false) {
+                    console.warn("TLS authorization warning (ignored by configuration): " +
+                        tlsSocket.authorizationError);
+                }
+                else {
+                    console.error("TLS authorization error: " + tlsSocket.authorizationError);
+                    this.tcpClient.destroy();
+                    return;
+                }
+            }
+        }
         this.writePayload({
             Command: "CONNECT",
             InstanceId: this.instanceId || "",
@@ -412,10 +450,11 @@ class Engine5Connection {
             }
         });
     }
-    static create(host, port, instanceGroup, instanceId) {
+    static create(connectOptions) {
+        const { host, port, instanceGroup = "default-group", instanceId = "default-id", } = connectOptions;
         const key = `${instanceGroup}(${instanceId})@${host}:${port}`;
         if (!this.globalE5Connections[key]) {
-            const nk = new Engine5Connection(host, port, instanceGroup, instanceId);
+            const nk = new Engine5Connection(connectOptions);
             this.globalE5Connections[key] = nk;
         }
         return this.globalE5Connections[key];
