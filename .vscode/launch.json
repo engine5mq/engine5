@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch File",
+      "name": "Engine5 Server",
       "type": "go",
       "request": "launch",
       "mode": "auto",

@@ -67,6 +67,8 @@ type Payload struct {
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
 	ResponseErrorSide   string
+	// Auth
+	AuthKey string `json:"authKey"`
 
 	// Not using yet
 	Completed     bool   `json:"completed"`

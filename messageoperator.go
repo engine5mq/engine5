@@ -75,7 +75,7 @@ func (op *MessageOperator) LoopRequests() {
 	}
 }
 
-// DistrubuteResponses processes incoming requests and responses.
+// İstekleri cevaplayan clientlerden gelen response isteği yapan clientlere geri yollanır.
 func (op *MessageOperator) DistrubuteResponses() {
 	select {
 	case incomingMessage, ok := <-op.requestGate:
@@ -105,7 +105,7 @@ func (op *MessageOperator) DistrubuteResponses() {
 	}
 }
 
-// DistrubuteReceivedRequests sends requests to appropriate clients.
+// Alınan istekleri kenara koyar ve ilgili clientlara isteği gönderir
 func (op *MessageOperator) DistrubuteReceivedRequests() {
 	for id, or := range op.ongoingRequests {
 		if or == nil || or.targetInstance == nil || or.sent {
@@ -222,6 +222,7 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 		if instance == nil {
 			continue
 		}
+
 		if instance.instanceGroup != "" {
 			if sentGroups[instance.instanceGroup] {
 				continue

@@ -71,33 +71,7 @@ docker-compose -f docker-compose.secure.yml up -d
 
 ## 🔑 Client Authentication
 
-### Token Almak
-Client'lar önce authentication yapmak zorunda:
-
-```json
-{
-    "command": "AUTH",
-    "content": "client-id-here"
-}
-```
-
-Başarılı authentication sonrası token alınır:
-```json
-{
-    "command": "AUTH_SUCCESS", 
-    "content": "eyJ0eXAiOiJKV1Qi..."
-}
-```
-
-### Token ile Bağlantı
-Her sonraki işlem için token gönderilmeli:
-```json
-{
-    "command": "CONNECT",
-    "instance_id": "my-client-123",
-    "token": "eyJ0eXAiOiJKV1Qi..."
-}
-```
+TODO: 
 
 ## 📊 Permissions Sistemi
 

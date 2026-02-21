@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,7 +12,7 @@ import (
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	JWTSecret      []byte
+	AuthSecret     []byte
 	RequireAuth    bool
 	TokenExpiry    time.Duration
 	AllowedClients map[string]ClientPermissions
@@ -93,7 +91,7 @@ func LoadAuthConfig() *AuthConfig {
 	}
 
 	config := &AuthConfig{
-		JWTSecret:      []byte(secret),
+		AuthSecret:     []byte(secret),
 		RequireAuth:    getEnvWithDefault("REQUIRE_AUTH", "true") == "true",
 		TokenExpiry:    time.Hour * 24, // 24 hours default
 		AllowedClients: make(map[string]ClientPermissions),
@@ -117,74 +115,25 @@ func LoadAuthConfig() *AuthConfig {
 	return config
 }
 
-// GenerateToken creates a new authentication token
-func (ac *AuthConfig) GenerateToken(clientID string) (string, error) {
+// ValidateAuthKey validates the provided auth key against configured keys
+// TLS already handles encryption, so we only need simple key validation
+func (ac *AuthConfig) ValidateAuthKey(authKey string, clientID string) (ClientPermissions, error) {
+	if authKey == "" {
+		return ClientPermissions{}, fmt.Errorf("auth key is required")
+	}
+
+	// Check if auth key matches the secret (simple validation)
+	if authKey != string(ac.AuthSecret) {
+		return ClientPermissions{}, fmt.Errorf("invalid auth key")
+	}
+
+	// Get permissions for the client
 	permissions, exists := ac.AllowedClients[clientID]
 	if !exists {
 		permissions = ac.AllowedClients["default"]
 	}
 
-	token := AuthToken{
-		ClientID:    clientID,
-		Permissions: permissions,
-		IssuedAt:    time.Now(),
-		ExpiresAt:   time.Now().Add(ac.TokenExpiry),
-	}
-
-	tokenJSON, err := json.Marshal(token)
-	if err != nil {
-		return "", err
-	}
-
-	// Create HMAC signature
-	h := hmac.New(sha256.New, ac.JWTSecret)
-	h.Write(tokenJSON)
-	signature := h.Sum(nil)
-
-	// Combine token and signature
-	tokenWithSig := base64.URLEncoding.EncodeToString(tokenJSON) + "." + base64.URLEncoding.EncodeToString(signature)
-
-	return tokenWithSig, nil
-}
-
-// ValidateToken validates and decodes a token
-func (ac *AuthConfig) ValidateToken(tokenString string) (*AuthToken, error) {
-	parts := strings.Split(tokenString, ".")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid token format")
-	}
-
-	tokenJSON, err := base64.URLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid token encoding")
-	}
-
-	signature, err := base64.URLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("invalid signature encoding")
-	}
-
-	// Verify signature
-	h := hmac.New(sha256.New, ac.JWTSecret)
-	h.Write(tokenJSON)
-	expectedSignature := h.Sum(nil)
-
-	if !hmac.Equal(signature, expectedSignature) {
-		return nil, fmt.Errorf("invalid signature")
-	}
-
-	// Decode token
-	var token AuthToken
-	if err := json.Unmarshal(tokenJSON, &token); err != nil {
-		return nil, fmt.Errorf("invalid token data")
-	}
-
-	// Check expiration
-	if time.Now().After(token.ExpiresAt) {
-		return nil, fmt.Errorf("token expired")
-	}
-
-	return &token, nil
+	return permissions, nil
 }
 
 // CheckPermission checks if client has permission for an action

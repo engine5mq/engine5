@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	fmt.Println("Engine5 Alpha - (c) 2026 - Tetakent (Hüseyin Can Gündüz)")
+
 	port := os.Getenv("E5_PORT")
 	if port == "" {
 		port = "3535"
@@ -42,7 +44,6 @@ func main() {
 		fmt.Println("WARNING: Engine5 is starting WITHOUT TLS - not recommended for production")
 	}
 
-	fmt.Println("Engine5 is being started")
 	fmt.Printf("Listening on port %s (TLS: %v, Auth: %v)\n", port, enableTLS, authConfig.RequireAuth)
 
 	mainOperator := MessageOperator{
@@ -61,7 +62,7 @@ func main() {
 
 	// Connection timeout and limits
 	maxConnections := getEnvWithDefaultInt("MAX_CONNECTIONS", 1000)
-	connectionTimeout := time.Duration(getEnvWithDefaultInt("CONNECTION_TIMEOUT", 30)) * time.Second
+	connectionTimeout := time.Duration(getEnvWithDefaultInt("CONNECTION_TIMEOUT", 86400)) * time.Second
 	activeConnections := 0
 
 	for {
