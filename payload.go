@@ -38,6 +38,11 @@ const (
 	CtClose = "CLOSE"
 	// Herhangi bir hata durumunda çift durumda belli koşullarla
 	CtError = "ERROR"
+	// Authentication commands
+	CtAuth         = "AUTH"
+	CtAuthSuccess  = "AUTH_SUCCESS"
+	CtAuthError    = "AUTH_ERROR"
+	CtUnauthorized = "UNAUTHORIZED"
 )
 
 /*
@@ -62,6 +67,8 @@ type Payload struct {
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
 	ResponseErrorSide   string
+	// Auth
+	AuthKey string `json:"authKey"`
 
 	// Not using yet
 	Completed     bool   `json:"completed"`

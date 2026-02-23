@@ -28,24 +28,17 @@ type MessageOperator struct {
 	ongoingRequests               map[string]*OngoingRequest
 	instanceGroupSelectionIndexes map[string]*InstanceGroupIndexSelection
 	clientConnectionQueue         *TaskQueue
+	authConfig                    *AuthConfig
 	haveNewRequests               chan struct{} // bool yerine struct{} kullan
-	// Alternatif olarak atomic değişken:
-	// requestsFlag int32
 }
 
 func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
-	// noop for now
-	// go func() {
-	// 	op.requestGate <- &RequestGateObject{rescan: true}
-	// }()
+
 	select {
 	case op.haveNewRequests <- struct{}{}:
 	default:
 		// Zaten bir signal var, yeni signal gerekmiyor
 	}
-	// go func()
-
-	// }()
 }
 
 // LoopMessages listens for event messages and publishes them.
@@ -76,7 +69,7 @@ func (op *MessageOperator) LoopRequests() {
 	}
 }
 
-// DistrubuteResponses processes incoming requests and responses.
+// İstekleri cevaplayan clientlerden gelen response isteği yapan clientlere geri yollanır.
 func (op *MessageOperator) DistrubuteResponses() {
 	select {
 	case incomingMessage, ok := <-op.requestGate:
@@ -106,7 +99,7 @@ func (op *MessageOperator) DistrubuteResponses() {
 	}
 }
 
-// DistrubuteReceivedRequests sends requests to appropriate clients.
+// Alınan istekleri kenara koyar ve ilgili clientlara isteği gönderir
 func (op *MessageOperator) DistrubuteReceivedRequests() {
 	for id, or := range op.ongoingRequests {
 		if or == nil || or.targetInstance == nil || or.sent {
@@ -223,6 +216,7 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 		if instance == nil {
 			continue
 		}
+
 		if instance.instanceGroup != "" {
 			if sentGroups[instance.instanceGroup] {
 				continue
