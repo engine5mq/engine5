@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Engine5 Alpha - (c) 2026 - Tetakent (Hüseyin Can Gündüz)")
+	fmt.Println("Engine5 Alpha - (c) 2026 - Tetakent (H.C.G)")
 
 	port := os.Getenv("E5_PORT")
 	if port == "" {

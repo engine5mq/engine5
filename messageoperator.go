@@ -33,18 +33,12 @@ type MessageOperator struct {
 }
 
 func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
-	// noop for now
-	// go func() {
-	// 	op.requestGate <- &RequestGateObject{rescan: true}
-	// }()
+
 	select {
 	case op.haveNewRequests <- struct{}{}:
 	default:
 		// Zaten bir signal var, yeni signal gerekmiyor
 	}
-	// go func()
-
-	// }()
 }
 
 // LoopMessages listens for event messages and publishes them.

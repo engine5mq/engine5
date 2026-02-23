@@ -174,6 +174,19 @@ func (connCl *ConnectedClient) ReaderLoop() {
 					connCl.Die()
 					return
 				}
+				// tls: first record does not look like a TLS handshake, bu hata genellikle TLS olmayan bir bağlantının TLS bekleyen bir sunucuya bağlanmaya çalışması durumunda ortaya çıkar, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
+				if err.Error() == "tls: first record does not look like a TLS handshake" {
+					println("Non-TLS connection to TLS server, closing connection: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+				// TLS bağlantısında bazen "remote error: handshake failure" hatası alınabiliyor, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
+				if err.Error() == "remote error: handshake failure" {
+					println("TLS handshake failure, closing connection: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+
 				println("Error reading length prefix: ", err.Error())
 				break
 			}
@@ -190,6 +203,23 @@ func (connCl *ConnectedClient) ReaderLoop() {
 		for remainingLength > 0 {
 			n, err := reader.Read(msgpackData[messageLength-uint32(remainingLength):])
 			if err != nil {
+				if (err.Error() == "EOF") || (err.Error() == "read tcp "+connCl.connection.LocalAddr().String()+"->"+connCl.connection.RemoteAddr().String()+": use of closed network connection") {
+					println("Connection closed by client: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+				// tls: first record does not look like a TLS handshake, bu hata genellikle TLS olmayan bir bağlantının TLS bekleyen bir sunucuya bağlanmaya çalışması durumunda ortaya çıkar, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
+				if err.Error() == "tls: first record does not look like a TLS handshake" {
+					println("Non-TLS connection to TLS server, closing connection: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
+				// TLS bağlantısında bazen "remote error: handshake failure" hatası alınabiliyor, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
+				if err.Error() == "remote error: handshake failure" {
+					println("TLS handshake failure, closing connection: ", connCl.instanceName)
+					connCl.Die()
+					return
+				}
 				println("Error reading msgpack data: ", err)
 				break
 			}
