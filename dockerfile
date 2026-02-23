@@ -47,7 +47,7 @@ COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /engine5 /engine5
 
 # Create directory for certificates
-RUN mkdir -p /app/certs
+# RUN mkdir -p /app/certs
 
 # Use non-root user
 USER engine5user
