@@ -81,7 +81,7 @@ REQUIRE_AUTH=true
 TLS_CERT_FILE=./certs/server.crt
 TLS_KEY_FILE=./certs/server.key
 TLS_CA_FILE=./certs/ca.crt
-TLS_REQUIRE_CLIENT_AUTH=false  # Mutual TLS için true yapın
+ENABLE_AUTH=false  # Mutual TLS için true yapın
 TLS_SERVER_NAME=localhost      # Production domain'iniz
 
 # Authentication (ÇOK ÖNEMLİ: Varsayılan değeri değiştirin!)
@@ -224,7 +224,7 @@ Client certificate ile authentication için:
 
 ```bash
 # .env dosyasında
-TLS_REQUIRE_CLIENT_AUTH=true
+ENABLE_AUTH=true
 TLS_CA_FILE=./certs/ca.crt
 
 # Client tarafında

@@ -64,6 +64,22 @@ func main() {
 	maxConnections := getEnvWithDefaultInt("MAX_CONNECTIONS", 1000)
 	connectionTimeout := time.Duration(getEnvWithDefaultInt("CONNECTION_TIMEOUT", 86400)) * time.Second
 	activeConnections := 0
+	activeConnectionsMutex := make(chan struct {
+		// Artan mı yoksa azalan mı olduğunu anlamak için sadece bir struct kullanıyoruz
+		// true: artan, false: azalan
+		isIncreasing bool
+	}, 1) // Mutex for activeConnections
+
+	go func() {
+		select {
+		case isIncreasing := <-activeConnectionsMutex:
+			if isIncreasing.isIncreasing {
+				activeConnections++
+			} else {
+				activeConnections--
+			}
+		}
+	}()
 
 	for {
 		conn, err := ln.Accept()
@@ -83,11 +99,11 @@ func main() {
 		conn.SetDeadline(time.Now().Add(connectionTimeout))
 
 		fmt.Printf("Incoming connection from %s\n", conn.RemoteAddr().String())
-		activeConnections++
+		activeConnectionsMutex <- struct{ isIncreasing bool }{isIncreasing: true}
 
 		go func() {
 			defer func() {
-				activeConnections--
+				activeConnectionsMutex <- struct{ isIncreasing bool }{isIncreasing: false}
 			}()
 			handleConnection(conn, &mainOperator)
 		}()
