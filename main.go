@@ -78,6 +78,8 @@ func main() {
 			} else {
 				activeConnections--
 			}
+		default:
+			// No update, just continue
 		}
 	}()
 
@@ -99,7 +101,9 @@ func main() {
 		conn.SetDeadline(time.Now().Add(connectionTimeout))
 
 		fmt.Printf("Incoming connection from %s\n", conn.RemoteAddr().String())
-		activeConnectionsMutex <- struct{ isIncreasing bool }{isIncreasing: true}
+		go func() {
+			activeConnectionsMutex <- struct{ isIncreasing bool }{isIncreasing: true}
+		}()
 
 		go func() {
 			defer func() {
@@ -114,9 +118,7 @@ func handleConnection(conn net.Conn, op *MessageOperator) {
 	var connCl = ConnectedClient{
 		died:       true,
 		writeQueue: make(chan []byte, 100),
-		authClient: &AuthenticatedClient{
-			IsAuth: false,
-		},
+		authClient: nil, // Sonradan atanacak
 	}
 
 	// Create authenticated wrapper
