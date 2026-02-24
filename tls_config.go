@@ -22,7 +22,7 @@ func LoadTLSConfig() *TLSConfig {
 		CertFile:    getEnvWithDefault("TLS_CERT_FILE", "server.crt"),
 		KeyFile:     getEnvWithDefault("TLS_KEY_FILE", "server.key"),
 		CAFile:      getEnvWithDefault("TLS_CA_FILE", "ca.crt"),
-		RequireAuth: getEnvWithDefault("ENABLE_AUTH", "false") == "true",
+		RequireAuth: getEnvWithDefault("TLS_REQUIRE_CLIENT_AUTH", "false") == "true",
 		ServerName:  getEnvWithDefault("TLS_SERVER_NAME", "localhost"),
 	}
 }
