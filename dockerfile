@@ -23,13 +23,14 @@ RUN go mod download
 RUN go mod verify
 
 # Copy the source code
-COPY *.go ./
+COPY cmd ./cmd
+COPY internal ./internal
 
 # Build with security flags
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/engine5 \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -a -installsuffix cgo \
     -ldflags='-w -s -extldflags "-static"' \
-    -o /engine5
+    -o /engine5 ./cmd/engine5
 
 # Production stage
 FROM scratch
