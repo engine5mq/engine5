@@ -26,7 +26,7 @@ RUN go mod verify
 COPY *.go ./
 
 # Build with security flags
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/engine5 \
     -a -installsuffix cgo \
     -ldflags='-w -s -extldflags "-static"' \
     -o /engine5
