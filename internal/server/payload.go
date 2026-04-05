@@ -27,7 +27,7 @@ const (
 	ile "REQUEST" gönderir. Aynı payload sağlanan bilgilerle sadece bir tane ilgili client'a gönderecektir*/
 	CtRequest = "REQUEST"
 	// Client "content" ve "id" ile istek gönderir
-	CtResponse = "RESPONSE"
+	CtResponse                = "RESPONSE"
 	CtResponseError           = "RESPONSE_ERROR"
 	CtResponseErrorSideE5     = "E5"
 	CtResponseErrorSideClient = "CLIENT"
@@ -50,7 +50,7 @@ type Payload struct {
 	// JSON / text içerik
 	Content string `msgpack:"content"`
 	// Binary içerik (image, pdf, vb.) — base64 dönüşümü gerektirmez
-	ContentBinary []byte `msgpack:"contentBinary,omitempty"`
+	ContentBinary       []byte `msgpack:"contentBinary,omitempty"`
 	Subject             string `msgpack:"subject"`
 	InstanceId          string `msgpack:"instanceId"`
 	MessageId           string `msgpack:"messageId"`
