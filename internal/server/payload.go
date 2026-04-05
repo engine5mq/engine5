@@ -28,7 +28,6 @@ const (
 	CtRequest = "REQUEST"
 	// Client "content" ve "id" ile istek gönderir
 	CtResponse = "RESPONSE"
-	// Herhangi bir "event" ya da "request" dinleneceği zaman `Subject` ile "LISTEN" gönderilir
 	CtResponseError           = "RESPONSE_ERROR"
 	CtResponseErrorSideE5     = "E5"
 	CtResponseErrorSideClient = "CLIENT"
@@ -45,34 +44,21 @@ const (
 	CtUnauthorized = "UNAUTHORIZED"
 )
 
-/*
-*
-
-	Tcp iletişimi sağlandığında bu payload kullanılacaktır.
-	Payload, gönderilmeden önce MessagePack ile byte dizisi haline getirilir, ve ayırımı kolay olması açısından sonuna 0x04
-
-	DİKKAT: SAYI TİPİ(INTEGER) YERİNE STRİNG KULLANIN. 0x04 BYTE İLE AYRILIYOR ANCAK PAYLOADIN İÇİNDE 4 SAYISI OLMASI (INTEGER - FIXINT) YANLIŞ KESİLMESİNE NEDEN OLUYOR
-	USE STRING INSTEAD OF NUMBER TYPE. IT IS SEPARATED BY '4' BUT THE PRESENCE OF THE NUMBER 4 (INTEGER - FIXINT) IN THE PAYLOAD CAUSES IT TO BE TRUNCTURED WRONGLY
-*/
+// Payload, TCP üzerinden iletilirken MessagePack ile kodlanır ve 4 byte big-endian length-prefix ile çerçevelenir.
 type Payload struct {
-	Command string `json:"command"`
-	// Event, Request, Response, Connecton Error
-	Content string `json:"content"`
-	// Event, Request, Response, Connecton Error
-	Subject string `json:"subject"`
-	// Connect
-	InstanceId string `json:"instanceId"`
-	// Event, Request
-	MessageId string `json:"messageId"`
-	// Response
-	ResponseOfMessageId string `json:"responseOfMessageId"`
-	ResponseErrorSide   string
-	// Auth
-	AuthKey string `json:"authKey"`
-
-	// Not using yet
-	Completed     bool   `json:"completed"`
-	InstanceGroup string `json:"instance_group"`
+	Command string `msgpack:"command"`
+	// JSON / text içerik
+	Content string `msgpack:"content"`
+	// Binary içerik (image, pdf, vb.) — base64 dönüşümü gerektirmez
+	ContentBinary []byte `msgpack:"contentBinary,omitempty"`
+	Subject             string `msgpack:"subject"`
+	InstanceId          string `msgpack:"instanceId"`
+	MessageId           string `msgpack:"messageId"`
+	ResponseOfMessageId string `msgpack:"responseOfMessageId"`
+	ResponseErrorSide   string `msgpack:"responseErrorSide,omitempty"`
+	AuthKey             string `msgpack:"authKey,omitempty"`
+	Completed           bool   `msgpack:"completed,omitempty"`
+	InstanceGroup       string `msgpack:"instance_group,omitempty"`
 }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {

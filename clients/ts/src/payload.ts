@@ -21,9 +21,11 @@ export type CommandType =
 export interface Payload {
   Command: CommandType;
   Content?: string;
+  /** Binary içerik — base64 dönüşümü gerektirmez */
+  ContentBinary?: Uint8Array;
   Subject?: string;
   InstanceId?: string;
   MessageId?: string;
   ResponseOfMessageId?: string;
-  InstanceGroup?: string
+  InstanceGroup?: string;
 }

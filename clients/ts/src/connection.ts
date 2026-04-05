@@ -190,7 +190,10 @@ export class Engine5Connection {
         try {
           const result = response.Content
             ? this.parseData(response.Content)
-            : undefined;
+            : {};
+          if (response.ContentBinary && result !== null && typeof result === "object") {
+            (result as any)._e5Binary = response.ContentBinary;
+          }
           resolve(result);
         } catch (error) {
           reject(error);
@@ -398,12 +401,17 @@ export class Engine5Connection {
       console.info("Request recieved: ", decoded.Subject);
       try {
         const ac = await this.listeningSubjectCallbacks[decoded.Subject!][0](
-          this.parseData(decoded.Content!),
+          this.parseData(decoded.Content ?? ""),
         );
-        // this.ongoingRequestsToComplete[decoded.MessageId!](ac)
+        let binaryContent: Uint8Array | undefined;
+        if (ac !== null && typeof ac === "object" && (ac as any)._e5Binary instanceof Uint8Array) {
+          binaryContent = (ac as any)._e5Binary;
+          delete (ac as any)._e5Binary;
+        }
         await this.writePayload({
           Command: "RESPONSE",
           Content: this.stringifyData(ac),
+          ContentBinary: binaryContent,
           MessageId: this.generateMessageId(),
           Subject: decoded.Subject,
           ResponseOfMessageId: decoded.MessageId,
