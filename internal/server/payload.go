@@ -3,7 +3,7 @@ package server
 import (
 	"encoding/binary"
 
-	"github.com/shamaton/msgpack"
+	"github.com/shamaton/msgpack/v2"
 )
 
 /** DİKKAT: EĞER BU KODDA İNGLİZCE TERİMLERE TAKILIP PLAZA AĞIZI

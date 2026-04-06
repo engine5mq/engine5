@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -119,7 +120,7 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtResponse:
-		fmt.Println("Client " + connCl.instanceName + " responsed a request. " + " content: " + pl.Content + ", responseOf: " + pl.ResponseOfMessageId)
+		fmt.Println("Client " + connCl.instanceName + " responsed a request. " + "Content binary length: " + strconv.Itoa(len(pl.ContentBinary)) + ", content: " + pl.Content + ", responseOf: " + pl.ResponseOfMessageId)
 		msg := MessageFromPayload(pl)
 		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
