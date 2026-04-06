@@ -9,6 +9,10 @@ CERT_DIR="./certs"
 DOMAIN="localhost"
 DAYS=365
 
+# Extra IP addresses to include in the server certificate SAN
+# Usage: EXTRA_IPS=("192.168.1.10" "10.0.0.5") ./generate_certs.sh
+EXTRA_IPS=("${EXTRA_IPS[@]}")
+
 # Create certificates directory
 mkdir -p "$CERT_DIR"
 cd "$CERT_DIR"
@@ -46,6 +50,13 @@ DNS.3 = 127.0.0.1
 IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
+
+# Append any extra IPs to the SAN section
+IP_INDEX=3
+for EXTRA_IP in "${EXTRA_IPS[@]}"; do
+    echo "IP.$IP_INDEX = $EXTRA_IP" >> server.ext
+    (( IP_INDEX++ ))
+done
 
 # Generate server certificate signed by CA
 echo "📝 Generating server certificate..."
