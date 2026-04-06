@@ -57,9 +57,12 @@ type Payload struct {
 	ResponseOfMessageId string `msgpack:"responseOfMessageId"`
 	ResponseErrorSide   string `msgpack:"responseErrorSide,omitempty"`
 	AuthKey             string `msgpack:"authKey,omitempty"`
-	Completed           bool   `msgpack:"completed,omitempty"`
-	InstanceGroup       string `msgpack:"instance_group,omitempty"`
+	// nil = legacy (mesaj tek parça), *false = streaming chunk devam ediyor, *true = son chunk
+	Completed     *bool  `msgpack:"completed,omitempty"`
+	InstanceGroup string `msgpack:"instance_group,omitempty"`
 }
+
+func boolPtr(b bool) *bool { return &b }
 
 func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
 	if len(msgpak) > 0 {

@@ -88,10 +88,20 @@ func (op *MessageOperator) DistrubuteResponses() {
 				ongoingReq.targetInstance.Write(Payload{
 					Command:             CtResponse,
 					Content:             messageIncoming.content,
+					ContentBinary:       messageIncoming.contentBinary,
 					Subject:             messageIncoming.targetSubjectName,
 					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
+					Completed:           messageIncoming.completed,
 				})
-				delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+				// Streaming: sadece final (nil veya *true) → entry silinir; *false → devam ediyor
+				isTerminal := messageIncoming.completed == nil || *messageIncoming.completed
+				if isTerminal {
+					delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
+				} else {
+					// Bir sonraki chunk gelebilir; sent=false yaparak loop'un tekrar
+					// buraya girmesine hazır olduğunu işaret ediyoruz
+					ongoingReq.sent = false
+				}
 			}
 		}
 	default:
@@ -172,6 +182,11 @@ func (op *MessageOperator) addRequest(message Message, clientRequesting *Connect
 // respondRequest queues a response to a request.
 func (op *MessageOperator) respondRequest(messageIncoming Message) {
 	op.requestGate <- &RequestGateObject{responseMessage: &messageIncoming}
+	// Her chunk için (streaming dahil) loop'u uyandır
+	select {
+	case op.haveNewRequests <- struct{}{}:
+	default:
+	}
 }
 
 // addConnectedClient adds a new client, ensuring unique instance names.
@@ -224,10 +239,12 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 		}
 		if instance.IsListening(msg.targetSubjectName) {
 			pl := Payload{
-				Command:   msg.commandType,
-				Content:   msg.content,
-				Subject:   msg.targetSubjectName,
-				MessageId: msg.id,
+				Command:       msg.commandType,
+				Content:       msg.content,
+				ContentBinary: msg.contentBinary,
+				Subject:       msg.targetSubjectName,
+				MessageId:     msg.id,
+				Completed:     msg.completed,
 			}
 			instance.Write(pl)
 			if instance.instanceGroup != "" {

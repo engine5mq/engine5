@@ -28,4 +28,6 @@ export interface Payload {
   MessageId?: string;
   ResponseOfMessageId?: string;
   InstanceGroup?: string;
+  /** undefined/null = tek parça (legacy), false = streaming chunk devam ediyor, true = son chunk */
+  Completed?: boolean;
 }

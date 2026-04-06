@@ -13,6 +13,11 @@ type TLSClientOptions = Pick<
   "ca" | "cert" | "key" | "servername" | "rejectUnauthorized"
 >;
 
+interface StreamAccumulator {
+  contentParts: string[];
+  binaryParts: Uint8Array[];
+}
+
 export interface Engine5ConnectionOptions {
   host: string;
   port: string | number;
@@ -33,6 +38,10 @@ export class Engine5Connection {
   > = {};
   private readonly ongoingRequestsToComplete: Record<string, RequestCallback> =
     {};
+  // Streaming chunk birleştirme: key = messageId/responseOfMessageId
+  private readonly streamingResponseAccumulators = new Map<string, StreamAccumulator>();
+  private readonly streamingEventAccumulators = new Map<string, StreamAccumulator>();
+  private readonly streamingRequestAccumulators = new Map<string, StreamAccumulator>();
   private readonly queue = new DynamicQueue();
   private reconnectOnFail = true;
   private tcpClientEventsRegistered = false;
@@ -399,29 +408,107 @@ export class Engine5Connection {
       this.processReceivedEvent(decoded);
     } else if (decoded.Command == "REQUEST") {
       console.info("Request recieved: ", decoded.Subject);
-      try {
-        const ac = await this.listeningSubjectCallbacks[decoded.Subject!][0](
-          this.parseData(decoded.Content ?? ""),
-        );
-        let binaryContent: Uint8Array | undefined;
-        if (ac !== null && typeof ac === "object" && (ac as any)._e5Binary instanceof Uint8Array) {
-          binaryContent = (ac as any)._e5Binary;
-          delete (ac as any)._e5Binary;
-        }
-        await this.writePayload({
-          Command: "RESPONSE",
-          Content: this.stringifyData(ac),
-          ContentBinary: binaryContent,
-          MessageId: this.generateMessageId(),
-          Subject: decoded.Subject,
-          ResponseOfMessageId: decoded.MessageId,
-        });
-      } catch (ex) {
-        console.error(ex);
-      }
+      await this.processReceivedRequest(decoded);
     } else if (decoded.Command == "RESPONSE") {
-      this.ongoingRequestsToComplete[decoded.ResponseOfMessageId!](decoded);
+      this.processReceivedResponse(decoded);
     }
+  }
+
+  private processReceivedResponse(decoded: Payload): void {
+    const responseId = decoded.ResponseOfMessageId!;
+    const isChunk = decoded.Completed === false;
+
+    if (isChunk) {
+      // Streaming: chunk'u biriktir, callback'i henüz çağırma
+      if (!this.streamingResponseAccumulators.has(responseId)) {
+        this.streamingResponseAccumulators.set(responseId, { contentParts: [], binaryParts: [] });
+      }
+      const acc = this.streamingResponseAccumulators.get(responseId)!;
+      if (decoded.Content) acc.contentParts.push(decoded.Content);
+      if (decoded.ContentBinary) acc.binaryParts.push(decoded.ContentBinary);
+      return;
+    }
+
+    // Terminal (undefined veya true): birleştir ve callback'i çağır
+    const acc = this.streamingResponseAccumulators.get(responseId);
+    const merged = this.mergeAccumulator(acc, decoded);
+    this.streamingResponseAccumulators.delete(responseId);
+
+    const cb = this.ongoingRequestsToComplete[responseId];
+    if (cb) cb(merged);
+  }
+
+  private async processReceivedRequest(decoded: Payload): Promise<void> {
+    const messageId = decoded.MessageId!;
+    const isChunk = decoded.Completed === false;
+
+    if (isChunk) {
+      // Streaming request: chunk'u biriktir, handler'ı henüz çağırma
+      if (!this.streamingRequestAccumulators.has(messageId)) {
+        this.streamingRequestAccumulators.set(messageId, { contentParts: [], binaryParts: [] });
+      }
+      const acc = this.streamingRequestAccumulators.get(messageId)!;
+      if (decoded.Content) acc.contentParts.push(decoded.Content);
+      if (decoded.ContentBinary) acc.binaryParts.push(decoded.ContentBinary);
+      return;
+    }
+
+    // Terminal: birleştir ve handler'ı çağır
+    const acc = this.streamingRequestAccumulators.get(messageId);
+    const merged = this.mergeAccumulator(acc, decoded);
+    this.streamingRequestAccumulators.delete(messageId);
+
+    try {
+      const ac = await this.listeningSubjectCallbacks[decoded.Subject!][0](
+        this.parseData(merged.Content ?? ""),
+      );
+      let binaryContent: Uint8Array | undefined;
+      if (ac !== null && typeof ac === "object" && (ac as any)._e5Binary instanceof Uint8Array) {
+        binaryContent = (ac as any)._e5Binary;
+        delete (ac as any)._e5Binary;
+      }
+      await this.writePayload({
+        Command: "RESPONSE",
+        Content: this.stringifyData(ac),
+        ContentBinary: binaryContent,
+        MessageId: this.generateMessageId(),
+        Subject: decoded.Subject,
+        ResponseOfMessageId: messageId,
+      });
+    } catch (ex) {
+      console.error(ex);
+    }
+  }
+
+  /**
+   * Birikmiş chunk'ları (varsa) mevcut payload ile birleştirip tek Payload döner.
+   * acc yoksa decoded olduğu gibi döner.
+   */
+  private mergeAccumulator(acc: StreamAccumulator | undefined, decoded: Payload): Payload {
+    if (!acc || (acc.contentParts.length === 0 && acc.binaryParts.length === 0)) {
+      return decoded;
+    }
+
+    // Metin içeriği birleştir
+    const allContent = [...acc.contentParts];
+    if (decoded.Content) allContent.push(decoded.Content);
+    const mergedContent = allContent.join("");
+
+    // Binary içeriği birleştir
+    let mergedBinary: Uint8Array | undefined;
+    const allBinary = [...acc.binaryParts];
+    if (decoded.ContentBinary) allBinary.push(decoded.ContentBinary);
+    if (allBinary.length > 0) {
+      const totalLength = allBinary.reduce((sum, arr) => sum + arr.length, 0);
+      mergedBinary = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const part of allBinary) {
+        mergedBinary.set(part, offset);
+        offset += part.length;
+      }
+    }
+
+    return { ...decoded, Content: mergedContent, ContentBinary: mergedBinary };
   }
 
   private parseData(dataString: string): any {
@@ -448,11 +535,29 @@ export class Engine5Connection {
     }
   }
 
-  private processReceivedEvent(decoded: Payload) {
-    const cbs = this.listeningSubjectCallbacks[decoded.Subject!] || [];
+  private processReceivedEvent(decoded: Payload): void {
+    const messageId = decoded.MessageId!;
+    const isChunk = decoded.Completed === false;
+
+    if (isChunk) {
+      // Streaming: chunk'u biriktir, callback'i henüz çağırma
+      if (!this.streamingEventAccumulators.has(messageId)) {
+        this.streamingEventAccumulators.set(messageId, { contentParts: [], binaryParts: [] });
+      }
+      const acc = this.streamingEventAccumulators.get(messageId)!;
+      if (decoded.Content) acc.contentParts.push(decoded.Content);
+      if (decoded.ContentBinary) acc.binaryParts.push(decoded.ContentBinary);
+      return;
+    }
+
+    // Terminal: birleştir ve tüm listener callback'lerini çağır
+    const acc = this.streamingEventAccumulators.get(messageId);
+    const merged = this.mergeAccumulator(acc, decoded);
+    this.streamingEventAccumulators.delete(messageId);
+
+    const cbs = this.listeningSubjectCallbacks[merged.Subject!] || [];
     for (let callbackIndex = 0; callbackIndex < cbs.length; callbackIndex++) {
-      const callback = cbs[callbackIndex];
-      callback(this.parseData(decoded.Content!));
+      cbs[callbackIndex](this.parseData(merged.Content ?? ""));
     }
   }
 
