@@ -10,8 +10,8 @@ DOMAIN="localhost"
 DAYS=365
 
 # Extra IP addresses to include in the server certificate SAN
-# Usage: EXTRA_IPS=("192.168.1.10" "10.0.0.5") ./generate_certs.sh
-EXTRA_IPS=("${EXTRA_IPS[@]}")
+# Usage: EXTRA_IPS="192.168.1.10 10.0.0.5" ./generate_certs.sh
+IFS=' ' read -ra EXTRA_IPS <<< "${EXTRA_IPS:-}"
 
 # Create certificates directory
 mkdir -p "$CERT_DIR"
@@ -46,7 +46,6 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = localhost
 DNS.2 = *.localhost
-DNS.3 = 127.0.0.1
 IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
