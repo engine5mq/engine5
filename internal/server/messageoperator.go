@@ -133,9 +133,10 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 			or.sent = true
 		} else {
 			or.targetInstance.Write(Payload{
-				Command:           CtResponseError,
-				Content:           "No clients matching the criteria were found.",
-				ResponseErrorSide: CtResponseErrorSideClient,
+				Command:             CtResponseError,
+				Content:             "No clients matching the criteria were found.",
+				ResponseErrorSide:   CtResponseErrorSideClient,
+				ResponseOfMessageId: message.id,
 			})
 			delete(op.ongoingRequests, id)
 		}
