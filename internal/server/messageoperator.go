@@ -139,6 +139,15 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 			})
 			delete(op.ongoingRequests, id)
 		}
+
+		if !or.sent {
+			or.targetInstance.Write(Payload{
+				Command:           CtResponseError,
+				Content:           "No clients matching the criteria were found. Check if there are any clients listening the subject and matching the instance group.",
+				ResponseErrorSide: CtResponseErrorSideClient,
+			})
+			delete(op.ongoingRequests, id)
+		}
 	}
 }
 
