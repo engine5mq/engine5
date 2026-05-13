@@ -10,7 +10,7 @@
       "request": "launch",
       "mode": "auto",
       "dlvFlags": ["--check-go-version=false"],
-      "program": ".",
+      "program": "./cmd/engine5/main.go",
       "envFile": "${workspaceFolder}/.env"
     }
     // {
