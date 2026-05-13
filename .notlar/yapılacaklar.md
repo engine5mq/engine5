@@ -11,4 +11,6 @@
             currentIndex: 0 => i % instances.length
         } }
 
-
+- [ ] MTLS zorunluluğu
+- [ ] IP banlama ve sınırlı IP izni
+- [ ] Rate limit kontrolü
