@@ -43,6 +43,41 @@ type AuthenticatedClient struct {
 	IsAuth      bool
 }
 
+func commandToAction(command string) string {
+	switch command {
+	case CtEvent:
+		return "publish"
+	case CtListen:
+		return "subscribe"
+	case CtRequest:
+		return "request"
+	default:
+		return ""
+	}
+}
+
+// AuthorizePayload performs auth, permission, and rate-limit checks for incoming payloads.
+func (connCl *ConnectedClient) AuthorizePayload(pl Payload) error {
+	if connCl == nil || connCl.operator == nil || connCl.operator.authConfig == nil {
+		return nil
+	}
+
+	if !connCl.operator.authConfig.RequireAuth {
+		return nil
+	}
+
+	action := commandToAction(pl.Command)
+	if action == "" {
+		return nil
+	}
+
+	if connCl.authClient == nil {
+		return fmt.Errorf("authentication required")
+	}
+
+	return connCl.authClient.EnsureAuthorized(action, pl.Subject)
+}
+
 // RateLimiter implements simple rate limiting
 type RateLimiter struct {
 	requests   []time.Time
@@ -172,6 +207,27 @@ func (ac *AuthenticatedClient) CheckPermission(action string, subject string) bo
 	}
 
 	return false
+}
+
+// EnsureAuthorized enforces auth state, token validity, permission checks and rate limits.
+func (ac *AuthenticatedClient) EnsureAuthorized(action string, subject string) error {
+	if ac == nil || !ac.IsAuth || ac.Token == nil {
+		return fmt.Errorf("client is not authenticated")
+	}
+
+	if !ac.Token.ExpiresAt.IsZero() && time.Now().After(ac.Token.ExpiresAt) {
+		return fmt.Errorf("authentication token expired")
+	}
+
+	if ac.RateLimiter != nil && !ac.RateLimiter.Allow() {
+		return fmt.Errorf("rate limit exceeded")
+	}
+
+	if !ac.CheckPermission(action, subject) {
+		return fmt.Errorf("permission denied for action: %s", action)
+	}
+
+	return nil
 }
 
 func generateRandomSecret() string {

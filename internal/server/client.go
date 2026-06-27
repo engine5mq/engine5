@@ -66,11 +66,13 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 		}
 
 		// Set up authenticated client
+		now := time.Now()
 		connCl.authClient.IsAuth = true
 		connCl.authClient.Token = &AuthToken{
 			ClientID:    clientID,
 			Permissions: permissions,
-			IssuedAt:    time.Now(),
+			IssuedAt:    now,
+			ExpiresAt:   now.Add(connCl.operator.authConfig.TokenExpiry),
 		}
 		connCl.authClient.RateLimiter = NewRateLimiter(permissions.RateLimit)
 		fmt.Printf("Client %s authenticated successfully\n", clientID)
@@ -95,6 +97,15 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
+	if err := connCl.AuthorizePayload(pl); err != nil {
+		connCl.Write(Payload{
+			Command: CtUnauthorized,
+			Content: err.Error(),
+			Subject: pl.Subject,
+		})
+		return
+	}
+
 	switch pl.Command {
 	case CtConnect:
 		connCl.BeSureConnection(pl)
