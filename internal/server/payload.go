@@ -86,7 +86,8 @@ func parsePayloadMsgPack(msgpak []byte) (p Payload, e error) {
 
 		return person, nil
 	} else {
-		println("Cannot read data. Connection is about to be closed")
+		// Boş veri: bağlantı kapanmak üzere. CtClose döndürülür ve
+		// kapanma akışı client tarafında (exhaust ile) loglanır.
 		return Payload{
 			Command: CtClose,
 		}, nil

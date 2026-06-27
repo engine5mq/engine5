@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 )
 
 func Run() {
+	exhaust := NewExhaustFromEnv()
 	fmt.Println("Engine5 Alpha - (c) 2026 - Tetakent (H.C.G)")
 
 	port := os.Getenv("E5_PORT")
@@ -25,26 +27,37 @@ func Run() {
 
 	var ln net.Listener
 	var err error
+	var serverTLSConf *tls.Config
 
 	if enableTLS {
-		tlsConf, err := tlsConfig.CreateTLSConfig()
+		serverTLSConf, err = tlsConfig.CreateTLSConfig()
 		if err != nil {
 			log.Fatalf("Failed to create TLS config: %v", err)
 		}
-		ln, err = tls.Listen("tcp", ":"+port, tlsConf)
+		ln, err = tls.Listen("tcp", ":"+port, serverTLSConf)
 		if err != nil {
 			log.Fatalf("Failed to listen on TLS: %v", err)
 		}
-		fmt.Println("Engine5 is starting with TLS enabled")
+		exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindServerStart, Msg: "Engine5 is starting with TLS enabled"})
 	} else {
 		ln, err = net.Listen("tcp", ":"+port)
 		if err != nil {
 			log.Fatalf("Failed to listen: %v", err)
 		}
-		fmt.Println("WARNING: Engine5 is starting WITHOUT TLS - not recommended for production")
+		exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindServerStart, Msg: "Engine5 is starting WITHOUT TLS - not recommended for production"})
 	}
 
-	fmt.Printf("Listening on port %s (TLS: %v, Auth: %v)\n", port, enableTLS, authConfig.RequireAuth)
+	exhaust.Emit(ExhaustEvent{
+		Level: slog.LevelInfo, Kind: KindServerStart,
+		Msg: fmt.Sprintf("Listening on port %s (TLS: %v, Auth: %v)", port, enableTLS, authConfig.RequireAuth),
+	})
+
+	// Egzoz çıkışı (Yol B): etkinse ayrı portta tap sunucusunu başlat.
+	var tapTLS *tls.Config
+	if getEnvWithDefault("E5_EXHAUST_TLS", strconv.FormatBool(enableTLS)) == "true" {
+		tapTLS = serverTLSConf
+	}
+	exhaust.StartTap(tapTLS)
 
 	mainOperator := MessageOperator{
 		instances:                     []*ConnectedClient{},
@@ -55,6 +68,7 @@ func Run() {
 		clientConnectionQueue:         NewTaskQueue(1),
 		authConfig:                    authConfig,
 		haveNewRequests:               make(chan struct{}, 1),
+		exhaust:                       exhaust,
 	}
 
 	go mainOperator.LoopMessages()
@@ -84,13 +98,13 @@ func Run() {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Printf("Connection Error: %v\n", err)
+			exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindServerError, Msg: "Connection accept error", Err: err.Error()})
 			continue
 		}
 
 		// Check connection limits
 		if activeConnections >= maxConnections {
-			fmt.Println("Maximum connections reached, rejecting new connection")
+			exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindServerError, Msg: "Maximum connections reached, rejecting new connection"})
 			conn.Close()
 			continue
 		}
@@ -98,7 +112,7 @@ func Run() {
 		// Set connection timeout
 		conn.SetDeadline(time.Now().Add(connectionTimeout))
 
-		fmt.Printf("Incoming connection from %s\n", conn.RemoteAddr().String())
+		exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnecting, Remote: conn.RemoteAddr().String(), Msg: "Incoming connection"})
 		go func() {
 			activeConnectionsMutex <- struct{ isIncreasing bool }{isIncreasing: true}
 		}()

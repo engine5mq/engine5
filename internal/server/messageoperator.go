@@ -1,6 +1,8 @@
 package server
 
 import (
+	"log/slog"
+
 	"github.com/google/uuid"
 )
 
@@ -30,6 +32,7 @@ type MessageOperator struct {
 	clientConnectionQueue         *TaskQueue
 	authConfig                    *AuthConfig
 	haveNewRequests               chan struct{} // bool yerine struct{} kullan
+	exhaust                       *Exhaust
 }
 
 func (op *MessageOperator) rescanRequestsForClient(connCl *ConnectedClient) {
@@ -91,6 +94,7 @@ func (op *MessageOperator) DistrubuteResponses() {
 					Subject:             messageIncoming.targetSubjectName,
 					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
 				})
+				op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseDelivered, Instance: ongoingReq.targetInstance.instanceName, Subject: messageIncoming.targetSubjectName, MessageId: messageIncoming.ResponseOfMessageId, Content: messageIncoming.content, Msg: "Response delivered to requester"})
 				delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
 			}
 		}
@@ -131,6 +135,7 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 			instance := relatedInstances[isi]
 			instance.Write(pl)
 			or.sent = true
+			op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindRequestRouted, Instance: instance.instanceName, Subject: message.targetSubjectName, MessageId: message.id, Content: message.content, Msg: "Request routed to client"})
 		} else {
 			or.targetInstance.Write(Payload{
 				Command:             CtResponseError,
@@ -138,6 +143,7 @@ func (op *MessageOperator) DistrubuteReceivedRequests() {
 				ResponseErrorSide:   CtResponseErrorSideClient,
 				ResponseOfMessageId: message.id,
 			})
+			op.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindRequestNoTarget, Subject: message.targetSubjectName, MessageId: message.id, Msg: "No client matched the request criteria"})
 			delete(op.ongoingRequests, id)
 		}
 
@@ -190,9 +196,9 @@ func (op *MessageOperator) addConnectedClient(client *ConnectedClient) {
 	op.clientConnectionQueue.Enqueue(func() {
 		for _, existInstance := range op.instances {
 			if client.instanceName == existInstance.instanceName {
-				println("Has a client name that same instance name. Renaming...")
+				oldName := client.instanceName
 				client.instanceName = client.instanceName + uuid.NewString()
-				println("Renamed to " + client.instanceName)
+				op.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindClientRenamed, Instance: client.instanceName, Msg: "Duplicate instance name, renamed", Err: "old=" + oldName})
 			}
 		}
 		op.instances = append(op.instances, client)
@@ -223,6 +229,7 @@ func (op *MessageOperator) addEvent(msg Message) {
 // PublishEventMessage sends an event message to all relevant clients.
 func (op *MessageOperator) PublishEventMessage(msg Message) {
 	sentGroups := make(map[string]bool)
+	delivered := false
 	for _, instance := range op.instances {
 		if instance == nil {
 			continue
@@ -241,9 +248,14 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 				MessageId: msg.id,
 			}
 			instance.Write(pl)
+			delivered = true
+			op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindEventDelivered, Instance: instance.instanceName, Group: instance.instanceGroup, Subject: msg.targetSubjectName, MessageId: msg.id, Content: msg.content, Msg: "Event delivered to client"})
 			if instance.instanceGroup != "" {
 				sentGroups[instance.instanceGroup] = true
 			}
 		}
+	}
+	if !delivered {
+		op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindEventNoListener, Subject: msg.targetSubjectName, MessageId: msg.id, Msg: "Event had no listeners"})
 	}
 }

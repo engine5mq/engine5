@@ -3,7 +3,7 @@ package server
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
+	"log/slog"
 	"net"
 	"time"
 
@@ -42,7 +42,7 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 				Command: CtConnectError,
 				Content: "Authentication required: auth key missing",
 			})
-			fmt.Println("Connection rejected: auth key missing")
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Msg: "Connection rejected: auth key missing"})
 			connCl.Die()
 			return
 		}
@@ -60,7 +60,7 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 				Command: CtConnectError,
 				Content: "Authentication failed: " + err.Error(),
 			})
-			fmt.Printf("Connection rejected for client %s: %v\n", clientID, err)
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Instance: clientID, Msg: "Connection rejected", Err: err.Error()})
 			connCl.Die()
 			return
 		}
@@ -75,7 +75,7 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 			ExpiresAt:   now.Add(connCl.operator.authConfig.TokenExpiry),
 		}
 		connCl.authClient.RateLimiter = NewRateLimiter(permissions.RateLimit)
-		fmt.Printf("Client %s authenticated successfully\n", clientID)
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindAuthOk, Instance: clientID, Msg: "Client authenticated successfully"})
 	}
 
 	// aynı olan instance idleri
@@ -93,7 +93,7 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName, InstanceGroup: payload.InstanceGroup}
 	connCl.died = false
 	connCl.Write(backPayload)
-	fmt.Println("Connected client's instance name is: " + connCl.instanceName)
+	connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnected, Instance: connCl.instanceName, Group: connCl.instanceGroup, Msg: "Client connected"})
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
@@ -110,27 +110,27 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	case CtConnect:
 		connCl.BeSureConnection(pl)
 	case CtClose:
-		fmt.Println("Client " + connCl.instanceName + " is closing")
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosing, Instance: connCl.instanceName, Msg: "Client is closing"})
 		connCl.Die()
 	case CtListen:
-		fmt.Println("Client " + connCl.instanceName + " is listening '" + pl.Subject + "' subject")
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientListen, Instance: connCl.instanceName, Subject: pl.Subject, Msg: "Client is listening subject"})
 		connCl.Listen(pl.Subject)
 		connCl.Write(Payload{Command: CtRecieved, Subject: pl.Subject})
 		go connCl.operator.rescanRequestsForClient(connCl)
 	case CtEvent:
-		fmt.Println("Client " + connCl.instanceName + " sent a event. " + " content: " + pl.Content + ", id: " + pl.MessageId)
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindEventReceived, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client sent an event"})
 		msg := MessageFromPayload(pl)
 		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtRequest:
-		fmt.Println("Client " + connCl.instanceName + " sent a request. " + " content: " + pl.Content + ", id: " + pl.MessageId + ", subject " + pl.Subject)
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindRequestReceived, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client sent a request"})
 		msg := MessageFromPayload(pl)
 		connCl.operator.addRequest(msg, connCl)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtResponse:
-		fmt.Println("Client " + connCl.instanceName + " responsed a request. " + " content: " + pl.Content + ", responseOf: " + pl.ResponseOfMessageId)
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseReceived, Instance: connCl.instanceName, MessageId: pl.ResponseOfMessageId, Content: pl.Content, Msg: "Client responded a request"})
 		msg := MessageFromPayload(pl)
 		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
@@ -142,7 +142,7 @@ func (connCl *ConnectedClient) Write(pl Payload) {
 	if connCl.connection != nil && !connCl.died {
 		json, err := pl.toMsgPak()
 		if err != nil {
-			println("HATA ", err)
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to encode payload", Err: err.Error()})
 		}
 		connCl.writeQueue <- json
 
@@ -181,24 +181,24 @@ func (connCl *ConnectedClient) ReaderLoop() {
 
 			if err != nil {
 				if (err.Error() == "EOF") || (err.Error() == "read tcp "+connCl.connection.LocalAddr().String()+"->"+connCl.connection.RemoteAddr().String()+": use of closed network connection") {
-					println("Connection closed by client: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosing, Instance: connCl.instanceName, Msg: "Connection closed by client"})
 					connCl.Die()
 					return
 				}
 				// tls: first record does not look like a TLS handshake, bu hata genellikle TLS olmayan bir bağlantının TLS bekleyen bir sunucuya bağlanmaya çalışması durumunda ortaya çıkar, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
 				if err.Error() == "tls: first record does not look like a TLS handshake" {
-					println("Non-TLS connection to TLS server, closing connection: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "Non-TLS connection to TLS server, closing connection"})
 					connCl.Die()
 					return
 				}
 				// TLS bağlantısında bazen "remote error: handshake failure" hatası alınabiliyor, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
 				if err.Error() == "remote error: handshake failure" {
-					println("TLS handshake failure, closing connection: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "TLS handshake failure, closing connection"})
 					connCl.Die()
 					return
 				}
 
-				println("Error reading length prefix: ", err.Error())
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "Error reading length prefix", Err: err.Error()})
 				break
 			}
 			lengthBytesRemaining -= n
@@ -215,23 +215,23 @@ func (connCl *ConnectedClient) ReaderLoop() {
 			n, err := reader.Read(msgpackData[messageLength-uint32(remainingLength):])
 			if err != nil {
 				if (err.Error() == "EOF") || (err.Error() == "read tcp "+connCl.connection.LocalAddr().String()+"->"+connCl.connection.RemoteAddr().String()+": use of closed network connection") {
-					println("Connection closed by client: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosing, Instance: connCl.instanceName, Msg: "Connection closed by client"})
 					connCl.Die()
 					return
 				}
 				// tls: first record does not look like a TLS handshake, bu hata genellikle TLS olmayan bir bağlantının TLS bekleyen bir sunucuya bağlanmaya çalışması durumunda ortaya çıkar, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
 				if err.Error() == "tls: first record does not look like a TLS handshake" {
-					println("Non-TLS connection to TLS server, closing connection: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "Non-TLS connection to TLS server, closing connection"})
 					connCl.Die()
 					return
 				}
 				// TLS bağlantısında bazen "remote error: handshake failure" hatası alınabiliyor, bu durumda da bağlantının kapandığını varsayıp client'ı öldürüyoruz
 				if err.Error() == "remote error: handshake failure" {
-					println("TLS handshake failure, closing connection: ", connCl.instanceName)
+					connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "TLS handshake failure, closing connection"})
 					connCl.Die()
 					return
 				}
-				println("Error reading msgpack data: ", err)
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindProtocolError, Instance: connCl.instanceName, Msg: "Error reading msgpack data", Err: err.Error()})
 				break
 			}
 			remainingLength -= n
@@ -245,7 +245,7 @@ func (connCl *ConnectedClient) ReaderLoop() {
 		// Msgpack verisini parse et
 		pl, err2 := parsePayloadMsgPack(msgpackData)
 		if err2 != nil {
-			println("Error while parsing payload: ", err2)
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindParseError, Instance: connCl.instanceName, Msg: "Error while parsing payload", Err: err2.Error()})
 		} else {
 			connCl.ReviewPayload(pl)
 			if connCl.died {
@@ -273,6 +273,6 @@ func (connCl *ConnectedClient) Die() {
 		defer connCl.operator.removeConnectedClient(connCl.instanceName)
 		defer connCl.connection.Close()
 		connCl.died = true
-		fmt.Println("Client " + connCl.instanceName + " has been closed")
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosed, Instance: connCl.instanceName, Msg: "Client has been closed"})
 	}
 }
