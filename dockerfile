@@ -1,6 +1,15 @@
+## Argümanlar
+# Arch: ARM ya da x86 (buildx tarafından --platform ile otomatik set edilir)
+
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21.0-alpine AS builder
+# BUILDPLATFORM: derlemenin yapıldığı host platformu (örn. linux/amd64)
+# TARGETOS / TARGETARCH: hedeflenen platform (örn. linux/arm64), buildx tarafından otomatik doldurulur
+FROM --platform=$BUILDPLATFORM golang:1.21.0-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
 
 # Install security updates and required tools
 RUN apk update && apk add --no-cache \
@@ -26,8 +35,8 @@ RUN go mod verify
 COPY cmd ./cmd
 COPY internal ./internal
 
-# Build with security flags
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build with security flags (TARGETOS/TARGETARCH buildx tarafından set edilir, örn: linux/amd64, linux/arm64, linux/arm/v7)
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} go build \
     -a -installsuffix cgo \
     -ldflags='-w -s -extldflags "-static"' \
     -o /engine5 ./cmd/engine5
