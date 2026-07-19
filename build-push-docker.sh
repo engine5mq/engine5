@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export IMAGE_NAME='hcangunduz/engine5'
-export IMAGE_TAG='0.0.13-alpha'
+export IMAGE_TAG='0.0.14-alpha'
 export DOCKER_FILE="./dockerfile"
 
 # Hedef platformlar: virgülle ayrılmış liste. Ortam değişkeni ile override edilebilir:
