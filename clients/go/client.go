@@ -18,33 +18,33 @@ import (
 )
 
 const (
-	CtConnect        = "CONNECT"
-	CtConnectSuccess = "CONNECT_SUCCESS"
-	CtConnectError   = "CONNECT_ERROR"
-	CtEvent          = "EVENT"
-	CtRecieved       = "RECIEVED"
-	CtRequest        = "REQUEST"
-	CtResponse       = "RESPONSE"
-	CtResponseError  = "RESPONSE_ERROR"
-	CtListen         = "LISTEN"
-	CtClose          = "CLOSE"
-	CtUnauthorized   = "UNAUTHORIZED"
-	CtError          = "ERROR"
+	CtConnect         = "CONNECT"
+	CtConnectSuccess  = "CONNECT_SUCCESS"
+	CtConnectError    = "CONNECT_ERROR"
+	CtEvent           = "EVENT"
+	CtRecieved        = "RECIEVED"
+	CtRequest         = "REQUEST"
+	CtResponse        = "RESPONSE"
+	CtResponseError   = "RESPONSE_ERROR"
+	CtListen          = "LISTEN"
+	CtClose           = "CLOSE"
+	CtUnauthorized    = "UNAUTHORIZED"
+	CtError           = "ERROR"
 	CtResponseErrorE5 = "E5"
 	CtResponseErrorCL = "CLIENT"
 )
 
 type Payload struct {
-	Command            string `json:"command"`
-	Content            string `json:"content"`
-	Subject            string `json:"subject"`
-	InstanceId         string `json:"instanceId"`
-	MessageId          string `json:"messageId"`
+	Command             string `json:"command"`
+	Content             string `json:"content"`
+	Subject             string `json:"subject"`
+	InstanceId          string `json:"instanceId"`
+	MessageId           string `json:"messageId"`
 	ResponseOfMessageId string `json:"responseOfMessageId"`
-	ResponseErrorSide  string
-	AuthKey            string `json:"authKey"`
-	Completed          bool   `json:"completed"`
-	InstanceGroup      string `json:"instance_group"`
+	ResponseErrorSide   string
+	AuthKey             string `json:"authKey"`
+	Completed           bool   `json:"completed"`
+	InstanceGroup       string `json:"instance_group"`
 }
 
 type Callback func(data any) any
@@ -81,11 +81,11 @@ type Client struct {
 	writeMu       sync.Mutex
 	conn          net.Conn
 	state         connectionState
-	connectWait    chan error
+	connectWait   chan error
 	pending       map[string]chan responseResult
 	listeners     map[string][]Callback
 	instanceID    string
-	instanceGroup  string
+	instanceGroup string
 	messageSeq    uint64
 }
 
@@ -105,11 +105,11 @@ func NewClient(opts Options) *Client {
 	}
 
 	return &Client{
-		opts:         opts,
-		state:        stateClosed,
-		pending:      make(map[string]chan responseResult),
-		listeners:    make(map[string][]Callback),
-		instanceID:   opts.InstanceID,
+		opts:          opts,
+		state:         stateClosed,
+		pending:       make(map[string]chan responseResult),
+		listeners:     make(map[string][]Callback),
+		instanceID:    opts.InstanceID,
 		instanceGroup: opts.InstanceGroup,
 	}
 }
@@ -186,10 +186,10 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	if err := c.writePayload(connectCtx, Payload{
-		Command:      CtConnect,
-		InstanceId:   c.opts.InstanceID,
+		Command:       CtConnect,
+		InstanceId:    c.opts.InstanceID,
 		InstanceGroup: c.opts.InstanceGroup,
-		AuthKey:      c.opts.AuthKey,
+		AuthKey:       c.opts.AuthKey,
 	}); err != nil {
 		c.failConnection(err)
 		return err
@@ -444,10 +444,10 @@ func (c *Client) handleRequest(payload Payload) {
 
 	responseValue := callbacks[0](content)
 	_ = c.writePayload(context.Background(), Payload{
-		Command:            CtResponse,
-		Subject:            payload.Subject,
-		Content:            c.stringifyData(responseValue),
-		MessageId:          c.generateMessageID(),
+		Command:             CtResponse,
+		Subject:             payload.Subject,
+		Content:             c.stringifyData(responseValue),
+		MessageId:           c.generateMessageID(),
 		ResponseOfMessageId: payload.MessageId,
 	})
 }
