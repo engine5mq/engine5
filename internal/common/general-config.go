@@ -19,12 +19,12 @@ var (
 
 func ReadFromEnv() *GeneralConfig {
 	return &GeneralConfig{
-		Host:           EnvOr("E5_HOST", "localhost"),
-		EventPort:      EnvIntOr("E5_EVENT_PORT", 8080),
-		ExhaustivePort: EnvIntOr("E5_EXHAUSTIVE_PORT", 8081),
-		InstanceID:     EnvOr("E5_INSTANCE_ID", "default-instance"),
-		InstanceGroup:  EnvOr("E5_INSTANCE_GROUP", "default-group"),
-		ActiveRulePath: EnvOr("E5_ACTIVE_RULE_PATH", "./rules/active_rule.json"),
+		Host:           EnvOr(EnvHost, "localhost"),
+		EventPort:      EnvIntOr(EnvEventPort, 8080),
+		ExhaustivePort: EnvIntOr(EnvExhaustivePort, 8081),
+		InstanceID:     EnvOr(EnvInstanceID, "default-instance"),
+		InstanceGroup:  EnvOr(EnvInstanceGroup, "default-group"),
+		ActiveRulePath: EnvOr(EnvActiveRulePath, "./rules/active_rule.json"),
 	}
 }
 

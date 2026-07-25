@@ -18,12 +18,12 @@ var (
 
 func ReadClientConfigFromEnv() *ClientConfig {
 	return &ClientConfig{
-		Host:          EnvOr("E5_HOST", "localhost"),
-		Port:          EnvIntOr("E5_PORT", 3535),
-		InstanceID:    EnvOr("E5_INSTANCE_ID", "demo-client"),
-		InstanceGroup: EnvOr("E5_INSTANCE_GROUP", "demo-group"),
-		Subject:       EnvOr("E5_SUBJECT", "demo.subject"),
-		TLSEnabled:    EnvBoolOr("E5_TLS", false),
+		Host:          EnvOr(EnvHost, "localhost"),
+		Port:          EnvIntOr(EnvPort, 3535),
+		InstanceID:    EnvOr(EnvInstanceID, "demo-client"),
+		InstanceGroup: EnvOr(EnvInstanceGroup, "demo-group"),
+		Subject:       EnvOr(EnvSubject, "demo.subject"),
+		TLSEnabled:    EnvBoolOr(EnvClientTLS, false),
 	}
 }
 

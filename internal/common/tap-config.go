@@ -21,12 +21,12 @@ var (
 
 func ReadTapConfigFromEnv() *TapConfig {
 	return &TapConfig{
-		Host:      EnvOr("E5_EXHAUST_HOST", "localhost"),
-		Port:      EnvOr("E5_EXHAUST_PORT", "3536"),
-		Key:       os.Getenv("E5_EXHAUST_KEY"),
-		UseTLS:    EnvBoolOr("E5_EXHAUST_TLS", true),
-		CAFile:    os.Getenv("E5_EXHAUST_CA_FILE"),
-		Reconnect: EnvBoolOr("E5_EXHAUST_RECONNECT", true),
+		Host:      EnvOr(EnvExhaustHost, "localhost"),
+		Port:      EnvOr(EnvExhaustPort, "3536"),
+		Key:       os.Getenv(EnvExhaustKey),
+		UseTLS:    EnvBoolOr(EnvExhaustTLS, true),
+		CAFile:    os.Getenv(EnvExhaustCAFile),
+		Reconnect: EnvBoolOr(EnvExhaustReconnect, true),
 	}
 }
 

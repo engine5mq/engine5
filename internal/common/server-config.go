@@ -46,40 +46,40 @@ var (
 )
 
 func ReadServerConfigFromEnv() *ServerConfig {
-	enableTLS := EnvBoolOr("ENABLE_TLS", true)
+	enableTLS := EnvBoolOr(EnvEnableTLS, true)
 	exhaustTLS := enableTLS
-	if value, ok := os.LookupEnv("E5_EXHAUST_TLS"); ok {
-		exhaustTLS = EnvBoolOr("E5_EXHAUST_TLS", enableTLS)
+	if value, ok := os.LookupEnv(EnvExhaustTLS); ok {
+		exhaustTLS = EnvBoolOr(EnvExhaustTLS, enableTLS)
 		if value == "" {
 			exhaustTLS = enableTLS
 		}
 	}
 
 	return &ServerConfig{
-		Port:                 EnvIntOr("E5_PORT", 3535),
+		Port:                 EnvIntOr(EnvPort, 3535),
 		EnableTLS:            enableTLS,
-		MaxConnections:       EnvIntOr("MAX_CONNECTIONS", 1000),
-		ConnectionTimeoutSec: EnvIntOr("CONNECTION_TIMEOUT", 86400),
+		MaxConnections:       EnvIntOr(EnvMaxConnections, 1000),
+		ConnectionTimeoutSec: EnvIntOr(EnvConnectionTimeout, 86400),
 		TLS: ServerTLSSettings{
-			CertFile:    EnvOr("TLS_CERT_FILE", "server.crt"),
-			KeyFile:     EnvOr("TLS_KEY_FILE", "server.key"),
-			CAFile:      EnvOr("TLS_CA_FILE", "ca.crt"),
-			RequireAuth: EnvBoolOr("TLS_REQUIRE_CLIENT_AUTH", false),
-			ServerName:  EnvOr("TLS_SERVER_NAME", "localhost"),
+			CertFile:    EnvOr(EnvTLSCertFile, "server.crt"),
+			KeyFile:     EnvOr(EnvTLSKeyFile, "server.key"),
+			CAFile:      EnvOr(EnvTLSCAFile, "ca.crt"),
+			RequireAuth: EnvBoolOr(EnvTLSRequireClientAuth, false),
+			ServerName:  EnvOr(EnvTLSServerName, "localhost"),
 		},
 		Auth: ServerAuthSettings{
-			Secret:                os.Getenv("AUTH_SECRET"),
-			RequireAuth:           EnvBoolOr("REQUIRE_AUTH", true),
-			ClientPermissionsJSON: os.Getenv("CLIENT_PERMISSIONS"),
+			Secret:                os.Getenv(EnvAuthSecret),
+			RequireAuth:           EnvBoolOr(EnvRequireAuth, true),
+			ClientPermissionsJSON: os.Getenv(EnvClientPermissions),
 		},
 		Exhaust: ServerExhaustSettings{
-			Env:            EnvOr("E5_ENV", "development"),
-			LogLevel:       os.Getenv("E5_LOG_LEVEL"),
-			LogFormat:      os.Getenv("E5_LOG_FORMAT"),
-			IncludeContent: EnvBoolOr("E5_EXHAUST_INCLUDE_CONTENT", false),
-			EnableTap:      EnvBoolOr("E5_EXHAUST_ENABLE", false),
-			Port:           EnvOr("E5_EXHAUST_PORT", "3536"),
-			Key:            os.Getenv("E5_EXHAUST_KEY"),
+			Env:            EnvOr(EnvExhaustEnv, "development"),
+			LogLevel:       os.Getenv(EnvExhaustLogLevel),
+			LogFormat:      os.Getenv(EnvExhaustLogFormat),
+			IncludeContent: EnvBoolOr(EnvExhaustIncludeContent, false),
+			EnableTap:      EnvBoolOr(EnvExhaustEnable, false),
+			Port:           EnvOr(EnvExhaustPort, "3536"),
+			Key:            os.Getenv(EnvExhaustKey),
 			TLSEnabled:     exhaustTLS,
 		},
 	}
