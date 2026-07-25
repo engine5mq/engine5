@@ -16,7 +16,7 @@ func main() {
 	// TODO: E5'e tap client olarak bağlanmak için gerekli kodu buraya ekle.
 	tapConfig := common.GetTapConfig()
 	tapManager := aes.NewTapManager(func(ev aes.TapEvent) {
-		fmt.Printf("[%s] %s: %s\n", ev.Time.Format("2006-01-02 15:04:05"), ev.Level, ev.MessageId)
+		fmt.Printf("[%s] %s: %s | %s | %s | %s | %s | %s | %s | %s\n", ev.Time.Format("2006-01-02 15:04:05"), ev.Kind, ev.Group, ev.Instance, ev.Subject, ev.MessageId, ev.Remote, ev.Content, ev.Err, ev.Msg)
 		// TODO: Gelen olayları veritabanına kaydedeceğiz sonra
 	})
 	defer tapManager.Close()
