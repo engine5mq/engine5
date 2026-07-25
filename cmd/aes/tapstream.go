@@ -14,15 +14,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"engine5/internal/common"
-	"flag"
 	"fmt"
 	"net"
 	"os"
 	"time"
 )
 
-type tapEvent struct {
+type TapEvent struct {
 	Time      time.Time `json:"time"`
 	Level     string    `json:"level"`
 	Kind      string    `json:"kind"`
@@ -36,33 +34,40 @@ type tapEvent struct {
 	Msg       string    `json:"msg"`
 }
 
+type ConnectionInfo struct {
+	Host      string `json:"host"`
+	Port      string `json:"port"`
+	Key       string `json:"key"`
+	UseTLS    bool   `json:"useTLS"`
+	CAFile    string `json:"caFile"`
+	Reconnect bool   `json:"reconnect"`
+}
+
 type TapManager struct {
 }
 
-func connect() {
-	cfg := common.GetTapConfig()
-	host := flag.String("host", cfg.Host, "exhaust tap host")
-	port := flag.String("port", cfg.Port, "exhaust tap port")
-	key := flag.String("key", cfg.Key, "exhaust shared key (E5_EXHAUST_KEY)")
-	useTLS := flag.Bool("tls", cfg.UseTLS, "connect with TLS")
-	insecure := flag.Bool("insecure", false, "skip TLS certificate verification (dev / self-signed)")
-	caFile := flag.String("ca", cfg.CAFile, "CA certificate file to verify the server")
-	raw := flag.Bool("raw", false, "print raw NDJSON lines instead of formatted output")
-	reconnect := flag.Bool("reconnect", cfg.Reconnect, "automatically reconnect on disconnect")
-	flag.Parse()
-
-	addr := net.JoinHostPort(*host, *port)
-
+func (tm *TapManager) Connect(info ConnectionInfo) {
+	addr := net.JoinHostPort(info.Host, info.Port)
 	for {
-		if err := stream(addr, *key, *useTLS, *insecure, *caFile, *raw); err != nil {
+		if err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent); err != nil {
 			fmt.Fprintf(os.Stderr, "e5-tap: %v\n", err)
 		}
-		if !*reconnect {
+		if !info.Reconnect {
 			return
 		}
 		time.Sleep(2 * time.Second)
 		fmt.Fprintln(os.Stderr, "e5-tap: reconnecting...")
 	}
+}
+
+func (tm *TapManager) Disconnect() {
+	// Bağlantıyı kesmek için gerekli işlemleri burada yapabilirsiniz.
+	// Örneğin, bir bağlantı nesnesi varsa onu kapatabilirsiniz.
+}
+
+func (tm *TapManager) HandleEvent(ev TapEvent) {
+	// Burada gelen olayları işleyebilirsiniz. Örneğin, konsola yazdırabilirsiniz.
+	fmt.Printf("[%s] %s: %s\n", ev.Time.Format(time.RFC3339), ev.Level, ev.MessageId)
 }
 
 func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
@@ -85,7 +90,7 @@ func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 	return tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, tlsConf)
 }
 
-func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(tapEvent)) error {
+func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(TapEvent)) error {
 	conn, err := dial(addr, useTLS, insecure, caFile)
 	if err != nil {
 		return err
@@ -109,7 +114,7 @@ func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb
 			fmt.Println(string(line))
 			continue
 		}
-		var ev tapEvent
+		var ev TapEvent
 		if err := json.Unmarshal(line, &ev); err != nil {
 			fmt.Println(string(line)) // parse edilemiyorsa ham bas
 			continue
