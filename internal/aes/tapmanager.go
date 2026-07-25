@@ -1,13 +1,4 @@
-// Command e5-tap, Engine5'in egzoz çıkışını (exhaust tap) dinleyen bağımsız
-// bir araçtır. Tap portuna bağlanır, gerekiyorsa ortak anahtarı gönderir ve
-// gelen NDJSON olaylarını okunabilir biçimde yazdırır.
-//
-// Örnek:
-//
-//	E5_EXHAUST_KEY=secret go run ./cmd/e5-tap -host localhost -port 3536
-//	go run ./cmd/e5-tap -insecure          # self-signed sertifika ile dev
-//	go run ./cmd/e5-tap -raw                # ham JSON satırları
-package main
+package aes
 
 import (
 	"bufio"
@@ -44,12 +35,30 @@ type ConnectionInfo struct {
 }
 
 type TapManager struct {
+	willClose  bool
+	onTapEvent func(TapEvent)
+}
+
+// NewTapManager, verilen olay işleyici (callback) ile yeni bir TapManager oluşturur.
+// onTapEvent alanı paket dışından erişilemediği için diğer paketler bu constructor'ı kullanmalıdır.
+func NewTapManager(onTapEvent func(TapEvent)) *TapManager {
+	return &TapManager{onTapEvent: onTapEvent}
+}
+
+func (tm *TapManager) Close() {
+	tm.willClose = true
+}
+
+func (tm *TapManager) HandleEvent(ev TapEvent) {
+	if tm.onTapEvent != nil {
+		tm.onTapEvent(ev)
+	}
 }
 
 func (tm *TapManager) Connect(info ConnectionInfo) {
 	addr := net.JoinHostPort(info.Host, info.Port)
 	for {
-		if err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent); err != nil {
+		if err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent, func() bool { return tm.willClose }); err != nil {
 			fmt.Fprintf(os.Stderr, "e5-tap: %v\n", err)
 		}
 		if !info.Reconnect {
@@ -60,16 +69,16 @@ func (tm *TapManager) Connect(info ConnectionInfo) {
 	}
 }
 
-func (tm *TapManager) Disconnect() {
-	// Bağlantıyı kesmek için gerekli işlemleri burada yapabilirsiniz.
-	// Örneğin, bir bağlantı nesnesi varsa onu kapatabilirsiniz.
-}
-
-func (tm *TapManager) HandleEvent(ev TapEvent) {
-	// Burada gelen olayları işleyebilirsiniz. Örneğin, konsola yazdırabilirsiniz.
-	fmt.Printf("[%s] %s: %s\n", ev.Time.Format(time.RFC3339), ev.Level, ev.MessageId)
-}
-
+/**
+* Verilen adres ve TLS ayarları ile bir TCP bağlantısı kurar.
+* Eğer TLS kullanımı istenmiyorsa, normal bir TCP bağlantısı kurar.
+* TLS kullanımı isteniyorsa, gerekli sertifika doğrulama ayarlarını yapar.
+* @param addr Bağlanılacak adres (host:port formatında)
+* @param useTLS TLS kullanılıp kullanılmayacağını belirten boolean değer
+* @param insecure Sertifika doğrulamasını atlamak için boolean değer
+* @param caFile Özel CA sertifikası dosyasının yolu (boşsa varsayılan CA'lar kullanılır)
+* @return Kurulan net.Conn nesnesi ve olası hata
+ */
 func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 	if !useTLS {
 		return net.DialTimeout("tcp", addr, 10*time.Second)
@@ -90,7 +99,23 @@ func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 	return tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, tlsConf)
 }
 
-func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(TapEvent)) error {
+/**
+* Verilen adres ve TLS ayarları ile bir TCP bağlantısı kurar ve gelen NDJSON olaylarını işler.
+* Eğer ortak anahtar verilmişse, bağlantı kurulduktan sonra ilk satır olarak gönderilir.
+* @param addr Bağlanılacak adres (host:port formatında)
+* @param key Ortak anahtar (boşsa gönderilmez)
+* @param useTLS TLS kullanılıp kullanılmayacağını belirten boolean değer
+* @param insecure Sertifika doğrulamasını atlamak için boolean değer
+* @param caFile Özel CA sertifikası dosyasının yolu (boşsa varsayılan CA'lar kullanılır)
+* @param raw Ham JSON satırlarını yazdırmak için boolean değer
+* @param cb Gelen TapEvent olaylarını işlemek için callback fonksiyonu
+* @param cbCloseRequest bu callback fonksiyonu boolean döner ve bağlantının kapatılması gerektiğini belirtir
+* @return Olası hata
+ */
+func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(TapEvent), cbCloseRequest func() bool) error {
+	if cbCloseRequest != nil && cbCloseRequest() {
+		return fmt.Errorf("connection closed by request")
+	}
 	conn, err := dial(addr, useTLS, insecure, caFile)
 	if err != nil {
 		return err
@@ -121,6 +146,9 @@ func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb
 		}
 		// fmt.Println(format(ev))
 		cb(ev)
+		if cbCloseRequest != nil && cbCloseRequest() {
+			return nil
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("connection lost: %w", err)

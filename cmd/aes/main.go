@@ -1,6 +1,7 @@
 package main
 
 import (
+	"engine5/internal/aes"
 	"engine5/internal/common"
 	"fmt"
 )
@@ -14,9 +15,18 @@ func main() {
 	fmt.Println("Connecting e5 server as exhaustive client.")
 	// TODO: E5'e tap client olarak bağlanmak için gerekli kodu buraya ekle.
 	tapConfig := common.GetTapConfig()
+	tapManager := aes.NewTapManager(func(ev aes.TapEvent) {
+		fmt.Printf("[%s] %s: %s\n", ev.Time.Format("2006-01-02 15:04:05"), ev.Level, ev.MessageId)
+		// TODO: Gelen olayları veritabanına kaydedeceğiz sonra
+	})
+	defer tapManager.Close()
 
-	fmt.Println("Connecting e5 server as a client.")
-	// TODO: E5'e client olarak bağlanmak için gerekli kodu buraya ekle.
-	fmt.Println("Loading rules")
-
+	tapManager.Connect(aes.ConnectionInfo{
+		Host:      tapConfig.Host,
+		Port:      tapConfig.Port,
+		Key:       tapConfig.Key,
+		UseTLS:    tapConfig.UseTLS,
+		CAFile:    tapConfig.CAFile,
+		Reconnect: tapConfig.Reconnect,
+	})
 }

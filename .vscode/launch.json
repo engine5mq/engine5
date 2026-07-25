@@ -9,8 +9,21 @@
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "dlvFlags": ["--check-go-version=false"],
+      "dlvFlags": [
+        "--check-go-version=false"
+      ],
       "program": "./cmd/engine5/main.go",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Engine5 AES Server",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "dlvFlags": [
+        "--check-go-version=false"
+      ],
+      "program": "./cmd/aes/main.go",
       "envFile": "${workspaceFolder}/.env"
     }
     // {
