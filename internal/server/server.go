@@ -2,28 +2,25 @@ package server
 
 import (
 	"crypto/tls"
+	"engine5/internal/common"
 	"fmt"
 	"log"
 	"log/slog"
 	"net"
-	"os"
-	"strconv"
 	"time"
 )
 
 func Run() {
+	cfg := common.GetServerConfig()
 	exhaust := NewExhaustFromEnv()
 	fmt.Println("Engine5 Alpha - (c) 2026 - Tetakent (H.C.G)")
 
-	port := os.Getenv("E5_PORT")
-	if port == "" {
-		port = "3535"
-	}
+	port := fmt.Sprintf("%d", cfg.Port)
 
 	// Load security configurations
 	tlsConfig := LoadTLSConfig()
 	authConfig := LoadAuthConfig()
-	enableTLS := getEnvWithDefault("ENABLE_TLS", "true") == "true"
+	enableTLS := cfg.EnableTLS
 
 	var ln net.Listener
 	var err error
@@ -54,7 +51,7 @@ func Run() {
 
 	// Egzoz çıkışı (Yol B): etkinse ayrı portta tap sunucusunu başlat.
 	var tapTLS *tls.Config
-	if getEnvWithDefault("E5_EXHAUST_TLS", strconv.FormatBool(enableTLS)) == "true" {
+	if cfg.Exhaust.TLSEnabled {
 		tapTLS = serverTLSConf
 	}
 	exhaust.StartTap(tapTLS)
@@ -75,8 +72,8 @@ func Run() {
 	go mainOperator.LoopRequests()
 
 	// Connection timeout and limits
-	maxConnections := getEnvWithDefaultInt("MAX_CONNECTIONS", 1000)
-	connectionTimeout := time.Duration(getEnvWithDefaultInt("CONNECTION_TIMEOUT", 86400)) * time.Second
+	maxConnections := cfg.MaxConnections
+	connectionTimeout := time.Duration(cfg.ConnectionTimeoutSec) * time.Second
 	activeConnections := 0
 	activeConnectionsMutex := make(chan struct {
 		isIncreasing bool
@@ -149,13 +146,4 @@ func handleConnection(conn net.Conn, op *MessageOperator) {
 
 	go connCl.ReaderLoop()
 	go connCl.WriterLoop()
-}
-
-func getEnvWithDefaultInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
 }

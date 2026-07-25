@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"engine5/internal/common"
 	"flag"
 	"fmt"
 	"net"
@@ -36,22 +37,16 @@ type tapEvent struct {
 	Msg       string    `json:"msg"`
 }
 
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
 func main() {
-	host := flag.String("host", envOr("E5_EXHAUST_HOST", "localhost"), "exhaust tap host")
-	port := flag.String("port", envOr("E5_EXHAUST_PORT", "3536"), "exhaust tap port")
-	key := flag.String("key", os.Getenv("E5_EXHAUST_KEY"), "exhaust shared key (E5_EXHAUST_KEY)")
-	useTLS := flag.Bool("tls", envOr("E5_EXHAUST_TLS", "true") == "true", "connect with TLS")
+	cfg := common.GetTapConfig()
+	host := flag.String("host", cfg.Host, "exhaust tap host")
+	port := flag.String("port", cfg.Port, "exhaust tap port")
+	key := flag.String("key", cfg.Key, "exhaust shared key (E5_EXHAUST_KEY)")
+	useTLS := flag.Bool("tls", cfg.UseTLS, "connect with TLS")
 	insecure := flag.Bool("insecure", false, "skip TLS certificate verification (dev / self-signed)")
-	caFile := flag.String("ca", os.Getenv("E5_EXHAUST_CA_FILE"), "CA certificate file to verify the server")
+	caFile := flag.String("ca", cfg.CAFile, "CA certificate file to verify the server")
 	raw := flag.Bool("raw", false, "print raw NDJSON lines instead of formatted output")
-	reconnect := flag.Bool("reconnect", true, "automatically reconnect on disconnect")
+	reconnect := flag.Bool("reconnect", cfg.Reconnect, "automatically reconnect on disconnect")
 	flag.Parse()
 
 	addr := net.JoinHostPort(*host, *port)
