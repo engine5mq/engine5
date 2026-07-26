@@ -130,6 +130,9 @@ func StructToSetClause(keyValuePairs []KeyValuePair) (string, []interface{}) {
 	args := []interface{}{}
 
 	for _, kv := range keyValuePairs {
+		if kv.ValueSafeFunc == "DEFAULT_VALUE" && kv.Value == "" {
+			continue // Skip this key-value pair for the SET clause
+		}
 		if setClause != "" {
 			setClause += ", "
 		}
