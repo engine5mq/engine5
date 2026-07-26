@@ -23,15 +23,8 @@ func EnvIntOr(key string, def int) int {
 }
 
 func EnvBoolOr(key string, def bool) bool {
-	if v := os.Getenv(key); v != "" {
-		switch v {
-		case "1", "true", "TRUE", "yes", "YES", "on", "ON":
-			return true
-		case "0", "false", "FALSE", "no", "NO", "off", "OFF":
-			return false
-		}
-	}
-	return def
+	return BoolStringOrDefault(os.Getenv(key), def)
+
 }
 
 func envOr(key, def string) string {

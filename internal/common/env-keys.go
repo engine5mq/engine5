@@ -49,4 +49,17 @@ const (
 	EnvExhaustHost      = "E5_EXHAUST_HOST"
 	EnvExhaustCAFile    = "E5_EXHAUST_CA_FILE"
 	EnvExhaustReconnect = "E5_EXHAUST_RECONNECT"
+
+	// AES (server tarafı) ayarları
+	EnvAesRestApiEnable        = "E5_AES_REST_API_ENABLE"
+	EnvAesRestApiHost          = "E5_AES_REST_API_HOST"
+	EnvAesRestApiPort          = "E5_AES_REST_API_PORT"
+	EnvAesDbHost               = "E5_AES_DB_HOST"
+	EnvAesDbPort               = "E5_AES_DB_PORT"
+	EnvAesDbUser               = "E5_AES_DB_USER"
+	EnvAesDbPassword           = "E5_AES_DB_PASSWORD"
+	EnvAesDbName               = "E5_AES_DB_NAME"
+	EnvAesDbSSLMode            = "E5_AES_DB_SSL_MODE"
+	EnvAesDbDriver             = "E5_AES_DB_DRIVER"
+	EnvAesDbGenerateIfNotExist = "E5_AES_DB_GENERATE_IF_NOT_EXIST"
 )

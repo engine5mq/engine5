@@ -10,26 +10,9 @@ import (
 
 type DatabaseManager struct {
 	db                      *sql.DB
+	dbDriverName            string
 	activeTransaction       *sql.Tx
 	originalDatabaseManager *DatabaseManager
-}
-
-func NewDatabaseWithSqlitePath(dbPath string) (*DatabaseManager, error) {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DatabaseManager{db: db}, nil
-}
-
-func NewDatabaseWithMysqlDSN(dsn string) (*DatabaseManager, error) {
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DatabaseManager{db: db}, nil
 }
 
 func (dm *DatabaseManager) GetDB() *sql.DB {
@@ -106,6 +89,18 @@ func (dm *DatabaseManager) IsInTransaction() bool {
 	return dm.activeTransaction != nil
 }
 
+// Tablo ekleme metodu
+func (dm *DatabaseManager) CreateTable(tableDefinition TableDefinition) error {
+	query := TableCreationQueryFromDefinition(dm.dbDriverName, tableDefinition)
+	_, err := dm.Execute(query)
+	return err
+}
+
+func (dm *DatabaseManager) CreateTableFromStruct(structType interface{}) error {
+	tableDefinition := GetTableDefinitionFromStruct(structType)
+	return dm.CreateTable(tableDefinition)
+}
+
 // Crud metotlarını ekleyebilirsiniz. Örneğin:
 func (dm *DatabaseManager) Insert(table string, keyValuePairs []KeyValuePair) (sql.Result, error) {
 	setClause, args := StructToSetClause(keyValuePairs)
@@ -115,7 +110,7 @@ func (dm *DatabaseManager) Insert(table string, keyValuePairs []KeyValuePair) (s
 
 func (dm *DatabaseManager) Update(table string, keyValuePairs []KeyValuePair, whereClauses []KeyValuePair) (sql.Result, error) {
 	setClause, setArgs := StructToSetClause(keyValuePairs)
-	whereClause, whereArgs := StructToWhereClause(whereClauses)
+	whereClause, whereArgs := StructToWhereClause(dm.dbDriverName, whereClauses)
 
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", table, setClause, whereClause)
 	args := append(setArgs, whereArgs...)
@@ -123,7 +118,35 @@ func (dm *DatabaseManager) Update(table string, keyValuePairs []KeyValuePair, wh
 }
 
 func (dm *DatabaseManager) Delete(table string, whereClauses []KeyValuePair) (sql.Result, error) {
-	whereClause, args := StructToWhereClause(whereClauses)
+	whereClause, args := StructToWhereClause(dm.dbDriverName, whereClauses)
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s", table, whereClause)
 	return dm.Execute(query, args...)
+}
+
+func NewDatabaseWithSqlitePath(dbPath string) (*DatabaseManager, error) {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DatabaseManager{db: db, dbDriverName: "sqlite3"}, nil
+}
+
+func NewDatabaseWithParameters(dbDriver, dbUser, dbPassword, dbHost string, dbPort int, dbName string) (*DatabaseManager, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
+	db, err := sql.Open(dbDriver, dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DatabaseManager{db: db, dbDriverName: dbDriver}, nil
+}
+
+func NewDatabaseWithMysqlDSN(dsn string) (*DatabaseManager, error) {
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DatabaseManager{db: db, dbDriverName: "mysql"}, nil
 }
