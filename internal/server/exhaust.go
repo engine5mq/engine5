@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"engine5/internal/common"
 	"log/slog"
 	"os"
 	"strings"
@@ -44,7 +45,8 @@ const exhaustContentMasked = "[hidden]"
 //	E5_EXHAUST_PORT              tap portu     (varsayılan: 3536)
 //	E5_EXHAUST_KEY               tap ortak anahtarı (boşsa anahtar doğrulaması yok)
 func NewExhaustFromEnv() *Exhaust {
-	isProd := strings.EqualFold(getEnvWithDefault("E5_ENV", "development"), "production")
+	serverCfg := common.GetServerConfig()
+	isProd := serverCfg.Exhaust.Env == "production" || serverCfg.Exhaust.Env == "PRODUCTION"
 
 	defaultLevel := "DEBUG"
 	defaultFormat := "text"
@@ -55,20 +57,28 @@ func NewExhaustFromEnv() *Exhaust {
 
 	ex := &Exhaust{
 		queue:          make(chan ExhaustEvent, 1024),
-		includeContent: strings.EqualFold(getEnvWithDefault("E5_EXHAUST_INCLUDE_CONTENT", "false"), "true"),
+		includeContent: serverCfg.Exhaust.IncludeContent,
 	}
 
-	levelStr := strings.ToUpper(getEnvWithDefault("E5_LOG_LEVEL", defaultLevel))
+	levelStr := defaultLevel
+	if serverCfg.Exhaust.LogLevel != "" {
+		levelStr = serverCfg.Exhaust.LogLevel
+	}
+	levelStr = strings.ToUpper(levelStr)
 	if levelStr != "OFF" {
-		format := strings.ToLower(getEnvWithDefault("E5_LOG_FORMAT", defaultFormat))
+		format := defaultFormat
+		if serverCfg.Exhaust.LogFormat != "" {
+			format = serverCfg.Exhaust.LogFormat
+		}
+		format = strings.ToLower(format)
 		ex.sinks = append(ex.sinks, newConsoleSink(parseLevel(levelStr), format))
 	}
 
 	// Egzoz çıkışı (Yol B): etkinse TapSink oluştur. Sunucu, Serve'i
 	// StartTap ile (TLS yapılandırmasıyla birlikte) başlatır.
-	if strings.EqualFold(getEnvWithDefault("E5_EXHAUST_ENABLE", "false"), "true") {
-		tapPort := getEnvWithDefault("E5_EXHAUST_PORT", "3536")
-		tapKey := os.Getenv("E5_EXHAUST_KEY")
+	if serverCfg.Exhaust.EnableTap {
+		tapPort := serverCfg.Exhaust.Port
+		tapKey := serverCfg.Exhaust.Key
 		ex.tap = NewTapSink(tapPort, tapKey)
 		ex.sinks = append(ex.sinks, ex.tap)
 	}

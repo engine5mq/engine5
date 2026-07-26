@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"engine5/internal/common"
 	"fmt"
 	"os"
 )
@@ -18,12 +19,13 @@ type TLSConfig struct {
 
 // LoadTLSConfig creates TLS configuration from environment variables
 func LoadTLSConfig() *TLSConfig {
+	serverCfg := common.GetServerConfig()
 	return &TLSConfig{
-		CertFile:    getEnvWithDefault("TLS_CERT_FILE", "server.crt"),
-		KeyFile:     getEnvWithDefault("TLS_KEY_FILE", "server.key"),
-		CAFile:      getEnvWithDefault("TLS_CA_FILE", "ca.crt"),
-		RequireAuth: getEnvWithDefault("TLS_REQUIRE_CLIENT_AUTH", "false") == "true",
-		ServerName:  getEnvWithDefault("TLS_SERVER_NAME", "localhost"),
+		CertFile:    serverCfg.TLS.CertFile,
+		KeyFile:     serverCfg.TLS.KeyFile,
+		CAFile:      serverCfg.TLS.CAFile,
+		RequireAuth: serverCfg.TLS.RequireAuth,
+		ServerName:  serverCfg.TLS.ServerName,
 	}
 }
 
@@ -65,11 +67,4 @@ func (tc *TLSConfig) CreateTLSConfig() (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
-}
-
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

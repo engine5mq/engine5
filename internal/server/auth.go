@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"engine5/internal/common"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
@@ -119,7 +119,8 @@ func (rl *RateLimiter) Allow() bool {
 
 // LoadAuthConfig loads authentication configuration
 func LoadAuthConfig() *AuthConfig {
-	secret := os.Getenv("AUTH_SECRET")
+	serverCfg := common.GetServerConfig()
+	secret := serverCfg.Auth.Secret
 	if secret == "" {
 		secret = generateRandomSecret()
 		fmt.Printf("Generated new AUTH_SECRET: %s\n", secret)
@@ -127,13 +128,13 @@ func LoadAuthConfig() *AuthConfig {
 
 	config := &AuthConfig{
 		AuthSecret:     []byte(secret),
-		RequireAuth:    getEnvWithDefault("REQUIRE_AUTH", "true") == "true",
+		RequireAuth:    serverCfg.Auth.RequireAuth,
 		TokenExpiry:    time.Hour * 24, // 24 hours default
 		AllowedClients: make(map[string]ClientPermissions),
 	}
 
 	// Load client permissions from environment or config file
-	clientsConfig := os.Getenv("CLIENT_PERMISSIONS")
+	clientsConfig := serverCfg.Auth.ClientPermissionsJSON
 	if clientsConfig != "" {
 		json.Unmarshal([]byte(clientsConfig), &config.AllowedClients)
 	} else {
