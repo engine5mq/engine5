@@ -20,6 +20,36 @@ const (
 
 var tableDefinitionsFromStructs = map[string]TableDefinition{}
 
+func CamelCaseToSnakeCase(str string) string {
+	runes := []rune(str)
+	length := len(runes)
+	var result []rune
+
+	for i, r := range runes {
+		if i > 0 && isUpper(r) && (isLower(runes[i-1]) || (i+1 < length && isLower(runes[i+1]))) {
+			result = append(result, '_')
+		}
+		result = append(result, toLower(r))
+	}
+
+	return string(result)
+}
+
+func isUpper(r rune) bool {
+	return r >= 'A' && r <= 'Z'
+}
+
+func isLower(r rune) bool {
+	return r >= 'a' && r <= 'z'
+}
+
+func toLower(r rune) rune {
+	if isUpper(r) {
+		return r + ('a' - 'A')
+	}
+	return r
+}
+
 // get struct table definition. if not in the map, create it and return it.
 func GetTableDefinitionFromStruct(structType interface{}) TableDefinition {
 	tableName := reflect.TypeOf(structType).Name()
@@ -55,8 +85,8 @@ func CreateTableDefinitionFromStruct(tableName string, structType interface{}) T
 			continue
 		}
 
-		columnName := StringOrDefault(field.Tag.Get(TAGS_DB_KEY), field.Name)          // Eğer db tag yoksa, Go struct alan adı kullanılacak.
-		columnType := StringOrDefault(field.Tag.Get(TAGS_TYPE_KEY), field.Type.Name()) // Basit tip adı. Daha karmaşık tipler için ek işleme gerekebilir.
+		columnName := StringOrDefault(field.Tag.Get(TAGS_DB_KEY), CamelCaseToSnakeCase(field.Name)) // Eğer db tag yoksa, Go struct alan adı kullanılacak.
+		columnType := StringOrDefault(field.Tag.Get(TAGS_TYPE_KEY), field.Type.Name())              // Basit tip adı. Daha karmaşık tipler için ek işleme gerekebilir.
 		isPrimaryKey := BoolStringOrDefault(field.Tag.Get(TAGS_PRIMARY_KEY), false)
 		isAutoIncrement := BoolStringOrDefault(field.Tag.Get(TAGS_AUTO_INCREMENT), false)
 		isUnique := BoolStringOrDefault(field.Tag.Get(TAGS_UNIQUE), false)
