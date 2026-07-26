@@ -24,7 +24,7 @@
         "--check-go-version=false"
       ],
       "program": "./cmd/aes/main.go",
-      "envFile": "${workspaceFolder}/.env"
+      "envFile": "${workspaceFolder}/aes.env"
     }
     // {
     //     "name": "Launch Package",

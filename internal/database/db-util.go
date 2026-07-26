@@ -93,30 +93,6 @@ func formatDefaultValue(defaultValue interface{}) string {
 	return fmt.Sprintf("'%s'", defaultValueAsString)
 }
 
-type ColumnDefinition struct {
-	Name            string
-	Type            string
-	IsPrimaryKey    bool
-	IsAutoIncrement bool
-	IsUnique        bool
-	IsNotNull       bool
-	DefaultValue    interface{}
-	Length          int
-	SafeFunc        string // Opsiyonel: "UUID", "NOW", "CURRENT_TIMESTAMP" gibi güvenli fonksiyonlar için kullanılabilir.
-}
-
-type TableDefinition struct {
-	Name    string
-	Columns []ColumnDefinition
-}
-
-type KeyValuePair struct {
-	Key           string
-	Value         interface{}
-	ValueSafeFunc string // Opsiyonel: "UUID", "NOW", "CURRENT_TIMESTAMP" gibi güvenli fonksiyonlar için kullanılabilir.
-	Operator      string // Opsiyonel: "=", "<", ">", "<=", ">=", "<>", "!=" gibi operatörler için kullanılabilir. Varsayılan olarak "=" kabul edilir.
-}
-
 // Structtan where clause oluşturmak için bir yardımcı fonksiyon
 func StructToWhereClause(dbname string, keyValuePairs []KeyValuePair) (string, []interface{}) {
 	whereClause := ""

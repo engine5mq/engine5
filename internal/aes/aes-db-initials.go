@@ -13,7 +13,7 @@ type AesEventTap struct {
 	Level     slog.Level `json:"level" db:"level" type:"int" not_null:"true"`
 	Kind      string     `json:"kind" db:"kind" type:"varchar" size:"64" not_null:"true"`
 	Instance  string     `json:"instance,omitempty" db:"instance" type:"varchar" size:"128"`
-	Group     string     `json:"group,omitempty" db:"group" type:"varchar" size:"128"`
+	Group     string     `json:"group,omitempty" db:"instance_group" type:"varchar" size:"128"`
 	Subject   string     `json:"subject,omitempty" db:"subject" type:"varchar" size:"255"`
 	MessageId string     `json:"messageId,omitempty" db:"message_id" type:"varchar" size:"128"`
 	Remote    string     `json:"remote,omitempty" db:"remote" type:"varchar" size:"255"`
@@ -44,6 +44,7 @@ func ConnectToDatabase() (*database.DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	dbManager.SetShowQueries(config.DBShowQueries)
 	if config.DBGenerateIfNotExist {
 		// Assuming you have a struct representing your table, e.g., `MyTableStruct`
 		err = dbManager.CreateTableFromStruct(AesEventTap{})

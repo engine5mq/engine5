@@ -14,6 +14,13 @@ func main() {
 	fmt.Println("Engine5 AES - (c) 2026 - Tetakent (H.C.G)")
 	fmt.Println("Starting Database connection")
 
+	dbManager, err := aes.ConnectToDatabase()
+	if err != nil {
+		fmt.Println("Failed to connect to database:", err)
+		return
+	}
+	defer dbManager.Close()
+
 	fmt.Println("Connecting e5 server as exhaustive client.")
 	// TODO: E5'e tap client olarak bağlanmak için gerekli kodu buraya ekle.
 	tapConfig := common.GetTapConfig()

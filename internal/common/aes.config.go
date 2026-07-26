@@ -18,6 +18,7 @@ type AesConnectionConfig struct {
 	DBDriver             string
 	DBGenerateIfNotExist bool
 	DBSSLEnable          bool
+	DBShowQueries        bool
 }
 
 var (
@@ -33,11 +34,12 @@ func ReadAesConnectionConfigFromEnv() *AesConnectionConfig {
 		DBHost:               EnvOr(EnvAesDbHost, "localhost"),
 		DBPort:               EnvIntOr(EnvAesDbPort, 5432),
 		DBUser:               EnvOr(EnvAesDbUser, "user"),
-		DBPassword:           EnvOr(EnvAesDbPassword, "password"),
+		DBPassword:           EnvOrAllowEmpty(EnvAesDbPassword, "password"),
 		DBName:               EnvOr(EnvAesDbName, "aes_db"),
 		DBDriver:             EnvOr(EnvAesDbDriver, "postgres"),
 		DBSSLEnable:          EnvBoolOr(EnvAesDbSSLMode, false),
 		DBGenerateIfNotExist: EnvBoolOr(EnvAesDbGenerateIfNotExist, true),
+		DBShowQueries:        EnvBoolOr(EnvAesDbShowQueries, false),
 	}
 }
 

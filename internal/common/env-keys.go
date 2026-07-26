@@ -62,4 +62,5 @@ const (
 	EnvAesDbSSLMode            = "E5_AES_DB_SSL_MODE"
 	EnvAesDbDriver             = "E5_AES_DB_DRIVER"
 	EnvAesDbGenerateIfNotExist = "E5_AES_DB_GENERATE_IF_NOT_EXIST"
+	EnvAesDbShowQueries        = "E5_AES_DB_SHOW_QUERIES"
 )

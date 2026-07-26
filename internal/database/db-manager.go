@@ -13,13 +13,37 @@ type DatabaseManager struct {
 	dbDriverName            string
 	activeTransaction       *sql.Tx
 	originalDatabaseManager *DatabaseManager
+	showQueries             bool
 }
 
 func (dm *DatabaseManager) GetDB() *sql.DB {
 	return dm.db
 }
 
+func (dm *DatabaseManager) GetDriverName() string {
+	return dm.dbDriverName
+}
+
+func (dm *DatabaseManager) GetActiveTransaction() *sql.Tx {
+	return dm.activeTransaction
+}
+
+func (dm *DatabaseManager) SetShowQueries(show bool) {
+	dm.showQueries = show
+}
+
+func (dm *DatabaseManager) GetShowQueries() bool {
+	return dm.showQueries
+}
+
+func (dm *DatabaseManager) ShowQuery(query string, args ...interface{}) {
+	if dm.showQueries {
+		fmt.Printf("Executing Query: %s | Args: %v\n", query, args)
+	}
+}
+
 func (dm *DatabaseManager) Execute(query string, args ...interface{}) (sql.Result, error) {
+	dm.ShowQuery(query, args...)
 	if dm.activeTransaction != nil {
 		return dm.activeTransaction.Exec(query, args...)
 	}
@@ -27,6 +51,7 @@ func (dm *DatabaseManager) Execute(query string, args ...interface{}) (sql.Resul
 }
 
 func (dm *DatabaseManager) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	dm.ShowQuery(query, args...)
 	if dm.activeTransaction != nil {
 		return dm.activeTransaction.Query(query, args...)
 	}
@@ -133,6 +158,7 @@ func NewDatabaseWithSqlitePath(dbPath string) (*DatabaseManager, error) {
 }
 
 func NewDatabaseWithParameters(dbDriver, dbUser, dbPassword, dbHost string, dbPort int, dbName string) (*DatabaseManager, error) {
+
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
 	db, err := sql.Open(dbDriver, dsn)
 	if err != nil {

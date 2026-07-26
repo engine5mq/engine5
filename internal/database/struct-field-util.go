@@ -50,20 +50,6 @@ func toLower(r rune) rune {
 	return r
 }
 
-// get struct table definition. if not in the map, create it and return it.
-func GetTableDefinitionFromStruct(structType interface{}) TableDefinition {
-	tableName := reflect.TypeOf(structType).Name()
-
-	if tableDef, exists := tableDefinitionsFromStructs[tableName]; exists {
-		return tableDef
-	}
-
-	// Eğer tablo tanımı yoksa, struct'tan tablo tanımını oluştur.
-	tableDef := CreateTableDefinitionFromStruct(tableName, structType)
-	tableDefinitionsFromStructs[tableName] = tableDef
-	return tableDef
-}
-
 func CreateTableDefinitionFromStruct(tableName string, structType interface{}) TableDefinition {
 	tableDefFromMap, tableDefExist := tableDefinitionsFromStructs[tableName]
 	if tableDefExist {
@@ -85,8 +71,13 @@ func CreateTableDefinitionFromStruct(tableName string, structType interface{}) T
 			continue
 		}
 
-		columnName := StringOrDefault(field.Tag.Get(TAGS_DB_KEY), CamelCaseToSnakeCase(field.Name)) // Eğer db tag yoksa, Go struct alan adı kullanılacak.
-		columnType := StringOrDefault(field.Tag.Get(TAGS_TYPE_KEY), field.Type.Name())              // Basit tip adı. Daha karmaşık tipler için ek işleme gerekebilir.
+		structFieldName := field.Name
+		if structFieldName == "" {
+			continue // Eğer alan adı boşsa, atla.
+		}
+		fieldIndex := i
+		columnName := StringOrDefault(field.Tag.Get(TAGS_DB_KEY), CamelCaseToSnakeCase(structFieldName)) // Eğer db tag yoksa, Go struct alan adı kullanılacak.
+		columnType := StringOrDefault(field.Tag.Get(TAGS_TYPE_KEY), field.Type.Name())                   // Basit tip adı. Daha karmaşık tipler için ek işleme gerekebilir.
 		isPrimaryKey := BoolStringOrDefault(field.Tag.Get(TAGS_PRIMARY_KEY), false)
 		isAutoIncrement := BoolStringOrDefault(field.Tag.Get(TAGS_AUTO_INCREMENT), false)
 		isUnique := BoolStringOrDefault(field.Tag.Get(TAGS_UNIQUE), false)
@@ -105,9 +96,30 @@ func CreateTableDefinitionFromStruct(tableName string, structType interface{}) T
 			// Diğer özellikler (IsPrimaryKey, IsAutoIncrement, vb.) için ek tag'ler kullanılabilir.
 			DefaultValue: defaultValue,
 			Length:       StringToIntOrDefault(field.Tag.Get(TAGS_SIZE_KEY), 0),
+			GetValueFunc: func(structInstance interface{}) interface{} {
+				v := reflect.ValueOf(structInstance)
+				if v.Kind() == reflect.Ptr {
+					v = v.Elem()
+				}
+				return v.Field(fieldIndex).Interface()
+			},
 		}
 		tableDef.Columns = append(tableDef.Columns, columnDef)
 	}
+	tableDefinitionsFromStructs[tableName] = tableDef
+	return tableDef
+}
+
+// get struct table definition. if not in the map, create it and return it.
+func GetTableDefinitionFromStruct(structType interface{}) TableDefinition {
+	tableName := reflect.TypeOf(structType).Name()
+
+	if tableDef, exists := tableDefinitionsFromStructs[tableName]; exists {
+		return tableDef
+	}
+
+	// Eğer tablo tanımı yoksa, struct'tan tablo tanımını oluştur.
+	tableDef := CreateTableDefinitionFromStruct(tableName, structType)
 	tableDefinitionsFromStructs[tableName] = tableDef
 	return tableDef
 }
