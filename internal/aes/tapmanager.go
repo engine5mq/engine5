@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+const (
+	defaultDialTimeout    = 10 * time.Second
+	defaultReconnectDelay = 2 * time.Second
+	initialScannerBuffer  = 64 * 1024
+	maxScannerBuffer      = 4 * 1024 * 1024
+)
+
 type TapEvent struct {
 	Time      time.Time `json:"time"`
 	Level     string    `json:"level"`
@@ -39,8 +46,7 @@ type TapManager struct {
 	onTapEvent func(TapEvent)
 }
 
-// NewTapManager, verilen olay işleyici (callback) ile yeni bir TapManager oluşturur.
-// onTapEvent alanı paket dışından erişilemediği için diğer paketler bu constructor'ı kullanmalıdır.
+// NewTapManager creates a new manager with an optional event callback.
 func NewTapManager(onTapEvent func(TapEvent)) *TapManager {
 	return &TapManager{onTapEvent: onTapEvent}
 }
@@ -55,33 +61,38 @@ func (tm *TapManager) HandleEvent(ev TapEvent) {
 	}
 }
 
+func (tm *TapManager) shouldClose() bool {
+	return tm.willClose
+}
+
 func (tm *TapManager) Connect(info ConnectionInfo) {
 	addr := net.JoinHostPort(info.Host, info.Port)
 	for {
-		if err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent, func() bool { return tm.willClose }); err != nil {
-			fmt.Fprintf(os.Stderr, "e5-tap: %v\n", err)
-		}
-		if !info.Reconnect {
+		if tm.shouldClose() {
 			return
 		}
-		time.Sleep(2 * time.Second)
+
+		err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent, tm.shouldClose)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "e5-tap: %v\n", err)
+		}
+
+		if !info.Reconnect || tm.shouldClose() {
+			return
+		}
+
+		time.Sleep(defaultReconnectDelay)
+		if tm.shouldClose() {
+			return
+		}
 		fmt.Fprintln(os.Stderr, "e5-tap: reconnecting...")
 	}
 }
 
-/**
-* Verilen adres ve TLS ayarları ile bir TCP bağlantısı kurar.
-* Eğer TLS kullanımı istenmiyorsa, normal bir TCP bağlantısı kurar.
-* TLS kullanımı isteniyorsa, gerekli sertifika doğrulama ayarlarını yapar.
-* @param addr Bağlanılacak adres (host:port formatında)
-* @param useTLS TLS kullanılıp kullanılmayacağını belirten boolean değer
-* @param insecure Sertifika doğrulamasını atlamak için boolean değer
-* @param caFile Özel CA sertifikası dosyasının yolu (boşsa varsayılan CA'lar kullanılır)
-* @return Kurulan net.Conn nesnesi ve olası hata
- */
+// dial creates a TCP/TLS connection depending on the given options.
 func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 	if !useTLS {
-		return net.DialTimeout("tcp", addr, 10*time.Second)
+		return net.DialTimeout("tcp", addr, defaultDialTimeout)
 	}
 
 	tlsConf := &tls.Config{InsecureSkipVerify: insecure} // #nosec G402 -- -insecure yalnızca açıkça istenirse
@@ -96,22 +107,10 @@ func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 		}
 		tlsConf.RootCAs = pool
 	}
-	return tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, tlsConf)
+	return tls.DialWithDialer(&net.Dialer{Timeout: defaultDialTimeout}, "tcp", addr, tlsConf)
 }
 
-/**
-* Verilen adres ve TLS ayarları ile bir TCP bağlantısı kurar ve gelen NDJSON olaylarını işler.
-* Eğer ortak anahtar verilmişse, bağlantı kurulduktan sonra ilk satır olarak gönderilir.
-* @param addr Bağlanılacak adres (host:port formatında)
-* @param key Ortak anahtar (boşsa gönderilmez)
-* @param useTLS TLS kullanılıp kullanılmayacağını belirten boolean değer
-* @param insecure Sertifika doğrulamasını atlamak için boolean değer
-* @param caFile Özel CA sertifikası dosyasının yolu (boşsa varsayılan CA'lar kullanılır)
-* @param raw Ham JSON satırlarını yazdırmak için boolean değer
-* @param cb Gelen TapEvent olaylarını işlemek için callback fonksiyonu
-* @param cbCloseRequest bu callback fonksiyonu boolean döner ve bağlantının kapatılması gerektiğini belirtir
-* @return Olası hata
- */
+// stream connects to remote tap source and processes incoming NDJSON events.
 func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(TapEvent), cbCloseRequest func() bool) error {
 	if cbCloseRequest != nil && cbCloseRequest() {
 		return fmt.Errorf("connection closed by request")
@@ -132,7 +131,7 @@ func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb
 	fmt.Fprintf(os.Stderr, "e5-tap: connected to %s\n", addr)
 
 	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	scanner.Buffer(make([]byte, 0, initialScannerBuffer), maxScannerBuffer)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if raw {
@@ -144,8 +143,11 @@ func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb
 			fmt.Println(string(line)) // parse edilemiyorsa ham bas
 			continue
 		}
-		// fmt.Println(format(ev))
-		cb(ev)
+
+		if cb != nil {
+			cb(ev)
+		}
+
 		if cbCloseRequest != nil && cbCloseRequest() {
 			return nil
 		}

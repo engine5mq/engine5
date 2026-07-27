@@ -93,91 +93,113 @@ func formatDefaultValue(defaultValue interface{}) string {
 	return fmt.Sprintf("'%s'", defaultValueAsString)
 }
 
-// Structtan where clause oluşturmak için bir yardımcı fonksiyon
-func StructToWhereClause(dbname string, keyValuePairs []KeyValuePair) (string, []interface{}) {
-	whereClause := ""
-	args := []interface{}{}
-
-	for _, kv := range keyValuePairs {
-		if whereClause != "" {
-			whereClause += " AND "
-		}
-		operator := kv.Operator
-		if operator == "" {
-			operator = "="
-		}
-		if kv.ValueSafeFunc != "" {
-			if safeFuncSQL, exists := resolveSafeFuncSQL(dbname, kv.ValueSafeFunc); exists {
-				whereClause += kv.Key + " " + operator + " " + safeFuncSQL
-			} else {
-				whereClause += kv.Key + " " + operator + " ?"
-				args = append(args, kv.Value)
-			}
-		} else {
-			whereClause += kv.Key + " " + operator + " ?"
-			args = append(args, kv.Value)
-		}
-		// whereClause += kv.Key + " " + operator + " ?"
-		// args = append(args, kv.Value)
+func hasUsableDefaultValue(defaultValue interface{}) bool {
+	if defaultValue == nil {
+		return false
 	}
 
-	return whereClause, args
+	if defaultAsString, ok := defaultValue.(string); ok {
+		return strings.TrimSpace(defaultAsString) != ""
+	}
+
+	return true
 }
 
-// Structtan set clause oluşturmak için bir yardımcı fonksiyon.
-func StructToSetClause(keyValuePairs []KeyValuePair) (string, []interface{}) {
-	setClause := ""
-	args := []interface{}{}
+func operatorOrDefault(operator string) string {
+	if strings.TrimSpace(operator) == "" {
+		return "="
+	}
+	return operator
+}
 
-	for _, kv := range keyValuePairs {
-		if kv.ValueSafeFunc == "DEFAULT_VALUE" && kv.Value == "" {
-			continue // Skip this key-value pair for the SET clause
+func StructToWhereClause(dbDriverName string, keyValuePairs []KeyValuePair) (string, []interface{}) {
+	var whereBuilder strings.Builder
+	args := make([]interface{}, 0, len(keyValuePairs))
+
+	for index, kv := range keyValuePairs {
+		if index > 0 {
+			whereBuilder.WriteString(" AND ")
 		}
-		if setClause != "" {
-			setClause += ", "
+
+		operator := operatorOrDefault(kv.Operator)
+		whereBuilder.WriteString(kv.Key)
+		whereBuilder.WriteString(" ")
+		whereBuilder.WriteString(operator)
+		whereBuilder.WriteString(" ")
+
+		if kv.ValueSafeFunc != "" {
+			if safeFuncSQL, exists := resolveSafeFuncSQL(dbDriverName, kv.ValueSafeFunc); exists {
+				whereBuilder.WriteString(safeFuncSQL)
+				continue
+			}
 		}
-		setClause += kv.Key + " = ?"
+
+		whereBuilder.WriteString("?")
 		args = append(args, kv.Value)
 	}
 
-	return setClause, args
+	return whereBuilder.String(), args
+}
+
+func StructToSetClause(keyValuePairs []KeyValuePair) (string, []interface{}) {
+	var setBuilder strings.Builder
+	args := make([]interface{}, 0, len(keyValuePairs))
+	hasAnyAssignment := false
+
+	for _, kv := range keyValuePairs {
+		if kv.ValueSafeFunc == "DEFAULT_VALUE" && kv.Value == "" {
+			continue
+		}
+
+		if hasAnyAssignment {
+			setBuilder.WriteString(", ")
+		}
+		setBuilder.WriteString(kv.Key)
+		setBuilder.WriteString(" = ?")
+		args = append(args, kv.Value)
+		hasAnyAssignment = true
+	}
+
+	return setBuilder.String(), args
 }
 
 func TableCreationQueryFromDefinition(dbDriverName string, tableDefinition TableDefinition) string {
 	tableName := tableDefinition.Name
 	columns := tableDefinition.Columns
 
-	columnDefs := ""
+	var columnDefsBuilder strings.Builder
 	for i, col := range columns {
 		if i > 0 {
-			columnDefs += ", "
+			columnDefsBuilder.WriteString(", ")
 		}
+
 		columnType := resolveColumnType(dbDriverName, col.Type)
 		if col.Length > 0 && !strings.Contains(columnType, "(") {
 			columnType = fmt.Sprintf("%s(%d)", columnType, col.Length)
 		}
-		columnDefs += fmt.Sprintf("%s %s", col.Name, columnType)
+
+		columnDefsBuilder.WriteString(fmt.Sprintf("%s %s", col.Name, columnType))
 		if col.IsPrimaryKey {
-			columnDefs += " PRIMARY KEY"
+			columnDefsBuilder.WriteString(" PRIMARY KEY")
 		}
 		if col.IsAutoIncrement {
-			columnDefs += " AUTOINCREMENT"
+			columnDefsBuilder.WriteString(" AUTOINCREMENT")
 		}
 		if col.IsNotNull {
-			columnDefs += " NOT NULL"
+			columnDefsBuilder.WriteString(" NOT NULL")
 		}
 		if col.IsUnique {
-			columnDefs += " UNIQUE"
+			columnDefsBuilder.WriteString(" UNIQUE")
 		}
+
 		if col.SafeFunc != "" {
 			if safeFuncSQL, exists := resolveSafeFuncSQL(dbDriverName, col.SafeFunc); exists {
-				columnDefs += fmt.Sprintf(" DEFAULT %s", safeFuncSQL)
+				columnDefsBuilder.WriteString(fmt.Sprintf(" DEFAULT %s", safeFuncSQL))
 			}
-		} else if col.DefaultValue != "" && col.DefaultValue != nil {
-			columnDefs += fmt.Sprintf(" DEFAULT %s", formatDefaultValue(col.DefaultValue))
+		} else if hasUsableDefaultValue(col.DefaultValue) {
+			columnDefsBuilder.WriteString(fmt.Sprintf(" DEFAULT %s", formatDefaultValue(col.DefaultValue)))
 		}
 	}
 
-	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, columnDefs)
-	return query
+	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, columnDefsBuilder.String())
 }

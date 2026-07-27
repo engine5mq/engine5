@@ -48,7 +48,12 @@ func main() {
 		if err != nil {
 			fmt.Printf("Failed to insert event into database: %v\n", err)
 		} else {
-			fmt.Printf("Inserted event into database with ID: %v\n", insertion.LastInsertId)
+			lastInsertID, lastInsertErr := insertion.LastInsertId()
+			if lastInsertErr != nil {
+				fmt.Printf("Inserted event into database (ID unavailable): %v\n", lastInsertErr)
+			} else {
+				fmt.Printf("Inserted event into database with ID: %v\n", lastInsertID)
+			}
 		}
 	})
 	defer tapManager.Close()

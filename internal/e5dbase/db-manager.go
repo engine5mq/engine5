@@ -64,7 +64,7 @@ func (dm *DatabaseManager) Query(query string, args ...interface{}) (*sql.Rows, 
  */
 func (dm *DatabaseManager) BeginTransaction() (*DatabaseManager, error) {
 	if dm.activeTransaction != nil {
-		return nil, fmt.Errorf("Already in a transaction")
+		return nil, fmt.Errorf("already in a transaction")
 	}
 
 	tx, err := dm.db.Begin()
@@ -73,11 +73,11 @@ func (dm *DatabaseManager) BeginTransaction() (*DatabaseManager, error) {
 	}
 	return &DatabaseManager{
 		db:                      dm.db,
+		dbDriverName:            dm.dbDriverName,
 		activeTransaction:       tx,
 		originalDatabaseManager: dm,
+		showQueries:             dm.showQueries,
 	}, nil
-	// dm.activeTransaction = tx
-	// return dm, nil
 }
 
 func (dm *DatabaseManager) CommitTransaction() (*DatabaseManager, error) {
@@ -126,7 +126,6 @@ func (dm *DatabaseManager) CreateTable(tableDefinition TableDefinition) error {
 // 	return dm.CreateTable(tableDefinition)
 // }
 
-// Crud metotlarını ekleyebilirsiniz. Örneğin:
 func (dm *DatabaseManager) Insert(table string, keyValuePairs []KeyValuePair) (sql.Result, error) {
 	setClause, args := StructToSetClause(keyValuePairs)
 	query := fmt.Sprintf("INSERT INTO %s SET %s", table, setClause)

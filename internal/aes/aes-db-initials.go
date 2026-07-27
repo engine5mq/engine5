@@ -4,16 +4,26 @@ import (
 	"engine5/internal/aes/entity"
 	"engine5/internal/common"
 	"engine5/internal/e5dbase"
+	"fmt"
 )
+
+func validateDBDriver(dbDriver string) error {
+	switch dbDriver {
+	case "mysql", "postgres":
+		return nil
+	case "":
+		return fmt.Errorf("database driver is not specified in the configuration")
+	default:
+		return fmt.Errorf("unsupported database driver %q", dbDriver)
+	}
+}
 
 func ConnectToDatabase() (*e5dbase.DatabaseManager, error) {
 	config := common.GetAesConnectionConfig()
-	if config.DBDriver == "" {
-		panic("Database driver is not specified in the configuration.")
+	if err := validateDBDriver(config.DBDriver); err != nil {
+		return nil, err
 	}
-	if config.DBDriver != "mysql" && config.DBDriver != "postgres" {
-		panic("Unsupported database driver specified in the configuration.")
-	}
+
 	dbManager, err := e5dbase.NewDatabaseWithParameters(
 		config.DBDriver,
 		config.DBUser,
@@ -25,13 +35,13 @@ func ConnectToDatabase() (*e5dbase.DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	dbManager.SetShowQueries(config.DBShowQueries)
 	if config.DBGenerateIfNotExist {
-		// Assuming you have a struct representing your table, e.g., `MyTableStruct`
-		err = dbManager.CreateTable(entity.AesEventTapTableDefinition())
-		if err != nil {
+		if err := dbManager.CreateTable(entity.AesEventTapTableDefinition()); err != nil {
 			return nil, err
 		}
 	}
-	return dbManager, err
+
+	return dbManager, nil
 }
