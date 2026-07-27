@@ -122,6 +122,8 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		msg := MessageFromPayload(pl)
 		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+	case CtConsumingSuccess:
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindConsumingSuccess, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client consumed a message successfully"})
 
 	case CtRequest:
 		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindRequestReceived, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client sent a request"})
