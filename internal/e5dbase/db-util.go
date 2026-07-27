@@ -1,4 +1,4 @@
-package database
+package e5dbase
 
 import (
 	"fmt"

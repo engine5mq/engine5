@@ -1,4 +1,4 @@
-package database
+package e5dbase
 
 type ColumnDefinition struct {
 	Name            string

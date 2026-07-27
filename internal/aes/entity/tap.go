@@ -1,7 +1,8 @@
 package entity
 
 import (
-	"engine5/internal/database"
+	"database/sql"
+	"engine5/internal/e5dbase"
 	"time"
 )
 
@@ -23,12 +24,35 @@ type AesEventTap struct {
 	Msg string `json:"msg,omitempty"`
 }
 
-func (AesEventTap) TableDefinition() database.TableDefinition {
+func FromSqlRow(row *sql.Row) (interface{}, error) {
+	var aet AesEventTap
+
+	err := row.Scan(
+		&aet.Id,
+		&aet.Time,
+		&aet.Level,
+		&aet.Kind,
+		&aet.Instance,
+		&aet.Group,
+		&aet.Subject,
+		&aet.MessageId,
+		&aet.Remote,
+		&aet.Content,
+		&aet.Err,
+		&aet.Msg,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return aet, nil
+}
+
+func (AesEventTap) TableDefinition() e5dbase.TableDefinition {
 	return AesEventTapTableDefinition()
 }
 
-func (aet AesEventTap) KeyValuePairs() []database.KeyValuePair {
-	return []database.KeyValuePair{
+func (aet AesEventTap) KeyValuePairs() []e5dbase.KeyValuePair {
+	return []e5dbase.KeyValuePair{
 		{
 			Key:           "id",
 			ValueSafeFunc: "DEFAULT_VALUE",
@@ -52,10 +76,10 @@ func AesEventTapTableName() string {
 	return "aes_event_tap"
 }
 
-func AesEventTapTableDefinition() database.TableDefinition {
-	return database.TableDefinition{
+func AesEventTapTableDefinition() e5dbase.TableDefinition {
+	return e5dbase.TableDefinition{
 		Name: AesEventTapTableName(),
-		Columns: []database.ColumnDefinition{
+		Columns: []e5dbase.ColumnDefinition{
 			{
 				Name:         "id",
 				Type:         "varchar",

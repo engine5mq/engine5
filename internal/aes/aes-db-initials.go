@@ -3,10 +3,10 @@ package aes
 import (
 	"engine5/internal/aes/entity"
 	"engine5/internal/common"
-	"engine5/internal/database"
+	"engine5/internal/e5dbase"
 )
 
-func ConnectToDatabase() (*database.DatabaseManager, error) {
+func ConnectToDatabase() (*e5dbase.DatabaseManager, error) {
 	config := common.GetAesConnectionConfig()
 	if config.DBDriver == "" {
 		panic("Database driver is not specified in the configuration.")
@@ -14,7 +14,7 @@ func ConnectToDatabase() (*database.DatabaseManager, error) {
 	if config.DBDriver != "mysql" && config.DBDriver != "postgres" {
 		panic("Unsupported database driver specified in the configuration.")
 	}
-	dbManager, err := database.NewDatabaseWithParameters(
+	dbManager, err := e5dbase.NewDatabaseWithParameters(
 		config.DBDriver,
 		config.DBUser,
 		config.DBPassword,

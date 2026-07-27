@@ -1,4 +1,4 @@
-package database
+package e5dbase
 
 var safeFuncs = map[string]map[string]string{
 	"UUID": {

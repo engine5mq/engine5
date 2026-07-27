@@ -143,6 +143,11 @@ func parseLevel(s string) slog.Level {
 	}
 }
 
+/**
+-------------
+CONSOLE SINK
+-------------
+*/
 /*
 ConsoleSink, olayları slog ile stdout'a yazar. Kendi minimum seviyesine
 göre filtreler.
