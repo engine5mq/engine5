@@ -15,8 +15,8 @@ const (
 
 	// Eğer alıcı client gelen eventi başarılı bir şekilde işlediyse, e5'e "CONSUMING_SUCCESS" gönderir. Bu, exhaust dinleyici servisinin (örn: AES)'in ilgili eventi veritabanında işlenmiş olarak işaretlemesini sağlar
 	// Ve bir daha ihtiyaç olunmayacağı emin olunur. Tekrar etmekte fayda var, Engine5 eventleri dağıtır ve request/response mekanizması sağlar. Eventların loglanması ve hata durumun yönetimi, bağlı clientların ve exhaust dinleyici servislerinin sorumluluğundadır.
-
 	CtConsumingSuccess = "CONSUMING_SUCCESS"
+	CtConsumingError   = "CONSUMING_ERROR"
 	//"CONNECT" işlemi başarılı olursa "instanceId" ile "CONNECT_SUCCESS" dönecektir
 	CtConnectSuccess = "CONNECT_SUCCESS"
 	CtConnectError   = "CONNECT_ERROR"

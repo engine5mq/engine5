@@ -60,4 +60,5 @@ const (
 	KindParseError       = "PARSE_ERROR"
 	KindInternalError    = "INTERNAL_ERROR"
 	KindConsumingSuccess = "CONSUMING_SUCCESS"
+	KindConsumingError   = "CONSUMING_ERROR"
 )
