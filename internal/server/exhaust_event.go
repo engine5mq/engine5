@@ -56,7 +56,9 @@ const (
 	KindResponseReceived  = "RESPONSE_RECEIVED"
 	KindResponseDelivered = "RESPONSE_DELIVERED"
 
-	KindProtocolError = "PROTOCOL_ERROR"
-	KindParseError    = "PARSE_ERROR"
-	KindInternalError = "INTERNAL_ERROR"
+	KindProtocolError    = "PROTOCOL_ERROR"
+	KindParseError       = "PARSE_ERROR"
+	KindInternalError    = "INTERNAL_ERROR"
+	KindConsumingSuccess = "CONSUMING_SUCCESS"
+	KindConsumingError   = "CONSUMING_ERROR"
 )
