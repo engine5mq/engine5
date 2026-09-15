@@ -35,14 +35,24 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 }
 
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
+	if connCl == nil {
+		return
+	}
+
+	if connCl.authClient == nil {
+		connCl.authClient = &AuthenticatedClient{ConnectedClient: connCl}
+	}
+
 	// Check authentication if required
-	if connCl.operator.authConfig.RequireAuth {
+	if connCl.operator != nil && connCl.operator.authConfig != nil && connCl.operator.authConfig.RequireAuth {
 		if payload.AuthKey == "" {
 			connCl.Write(Payload{
 				Command: CtConnectError,
 				Content: "Authentication required: auth key missing",
 			})
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Msg: "Connection rejected: auth key missing"})
+			if connCl.operator != nil && connCl.operator.exhaust != nil {
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Msg: "Connection rejected: auth key missing"})
+			}
 			connCl.Die()
 			return
 		}
@@ -60,7 +70,9 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 				Command: CtConnectError,
 				Content: "Authentication failed: " + err.Error(),
 			})
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Instance: clientID, Msg: "Connection rejected", Err: err.Error()})
+			if connCl.operator != nil && connCl.operator.exhaust != nil {
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Instance: clientID, Msg: "Connection rejected", Err: err.Error()})
+			}
 			connCl.Die()
 			return
 		}
@@ -75,7 +87,9 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 			ExpiresAt:   now.Add(connCl.operator.authConfig.TokenExpiry),
 		}
 		connCl.authClient.RateLimiter = NewRateLimiter(permissions.RateLimit)
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindAuthOk, Instance: clientID, Msg: "Client authenticated successfully"})
+		if connCl.operator != nil && connCl.operator.exhaust != nil {
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindAuthOk, Instance: clientID, Msg: "Client authenticated successfully"})
+		}
 	}
 
 	// aynı olan instance idleri
@@ -93,7 +107,9 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName, InstanceGroup: payload.InstanceGroup}
 	connCl.died = false
 	connCl.Write(backPayload)
-	connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnected, Instance: connCl.instanceName, Group: connCl.instanceGroup, Msg: "Client connected"})
+	if connCl.operator != nil && connCl.operator.exhaust != nil {
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnected, Instance: connCl.instanceName, Group: connCl.instanceGroup, Msg: "Client connected"})
+	}
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
@@ -142,13 +158,24 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 }
 
 func (connCl *ConnectedClient) Write(pl Payload) {
-	if connCl.connection != nil && !connCl.died {
-		json, err := pl.toMsgPak()
-		if err != nil {
+	if connCl == nil || connCl.connection == nil || connCl.died || connCl.writeQueue == nil {
+		return
+	}
+
+	json, err := pl.toMsgPak()
+	if err != nil {
+		if connCl.operator != nil && connCl.operator.exhaust != nil {
 			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to encode payload", Err: err.Error()})
 		}
-		connCl.writeQueue <- json
+		return
+	}
 
+	select {
+	case connCl.writeQueue <- json:
+	default:
+		if connCl.operator != nil && connCl.operator.exhaust != nil {
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Write queue full, dropping payload"})
+		}
 	}
 }
 
@@ -272,10 +299,16 @@ func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 * Client bağlantısını sonlandırır
  */
 func (connCl *ConnectedClient) Die() {
-	if connCl.connection != nil && !connCl.died {
-		defer connCl.operator.removeConnectedClient(connCl.instanceName)
-		defer connCl.connection.Close()
-		connCl.died = true
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosed, Instance: connCl.instanceName, Msg: "Client has been closed"})
+	if connCl == nil || connCl.connection == nil || connCl.died {
+		return
 	}
+
+	defer connCl.connection.Close()
+	if connCl.operator != nil {
+		defer connCl.operator.removeConnectedClient(connCl.instanceName)
+		if connCl.operator.exhaust != nil {
+			defer connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosed, Instance: connCl.instanceName, Msg: "Client has been closed"})
+		}
+	}
+	connCl.died = true
 }
