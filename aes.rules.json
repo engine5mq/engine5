@@ -1,3 +1,15 @@
 {
-  "rules": []
+  "$schema": "./aes.rules.schema.json",
+  "rules": [
+    {
+      "consumption_timeout": 0,
+      "on_consumption_timeout": "keep",
+      "instance_group": "tetakent-postral-payment",
+      "instance_name": "*",
+      "try_after": 1800,
+      "try_count": 20,
+      "remove_successful_timeout": 3600,
+      "remove_failed_timeout": 0
+    }
+  ]
 }

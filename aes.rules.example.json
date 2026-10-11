@@ -1,0 +1,33 @@
+{
+  "rules": [
+    {
+      "event_subject_key": "order.created",
+      "instance_group": "^orders$",
+      "instance_name": "^orders-worker-",
+      "try_after": 30,
+      "try_count": 5,
+      "consumption_timeout": 120,
+      "on_consumption_timeout": "try",
+      "remove_successful_timeout": 3600,
+      "remove_failed_timeout": 86400
+    },
+    {
+      "event_subject_key": { "regex": "^payment\\." },
+      "instance_group": "*",
+      "instance_name": "*",
+      "try_after": 60,
+      "try_count": 0,
+      "consumption_timeout": 300,
+      "on_consumption_timeout": "keep",
+      "remove_successful_timeout": 3600,
+      "remove_failed_timeout": 0
+    },
+    {
+      "event_subject_key": "temporary.notification",
+      "try_after": 0,
+      "consumption_timeout": 600,
+      "on_consumption_timeout": "remove",
+      "remove_successful_timeout": 60
+    }
+  ]
+}

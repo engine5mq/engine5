@@ -4,6 +4,8 @@ AES tap olaylarını veritabanına kaydeder. Kuralla eşleşen event teslimatlar
 mesaj + subject + tüketici grubu bazında ayrıca takip edilir. Bir gruptaki hata
 diğer grupların başarılı teslimatlarını etkilemez.
 
+[English](../en-us/4%20-%20aes.md)
+
 ## Yapılandırma
 
 `aes.env` yanında `aes.rules.json` bulunur. Dosya yolu çalışma dizinine göre
@@ -133,3 +135,45 @@ idempotency önerilir.
 
 Başlatma: ortam değişkenleri yüklendikten sonra `go run ./cmd/aes`.
 SIGINT/SIGTERM scheduler'ı durdurur, tap bağlantısını kapatır ve DB'yi bırakır.
+
+## JSON Schema ve örnek manifest
+
+- [Aktif manifest](../../aes.rules.json): AES'in varsayılan olarak okuduğu dosya.
+- [Örnek manifest](../../aes.rules.example.json): üç farklı politika gösterir;
+  otomatik olarak etkinleştirilmez.
+- [JSON Schema](../../aes.rules.schema.json): alan tiplerini, zorunlu alanları,
+  enum seçeneklerini, varsayılanları ve sayısal sınırları tanımlar.
+
+VS Code için [workspace ayarları](../../.vscode/settings.json) aktif ve örnek
+manifesti yerel şemaya bağlar. Alan açıklamaları, otomatik tamamlama ve JSON
+doğrulama çalışır; şema dosyasını indirmek için ağ bağlantısı gerekmez.
+`default` değerleri bilgilendiricidir; eksik alanların varsayılanlarını AES uygular.
+
+**Manifest içine `$schema` eklemeyin.** AES bilinmeyen kök alanları reddeder.
+Şema ilişkisi editör ayarlarında tutulur. Başka bir dosya adı kullanıyorsanız
+`json.schemas` içindeki `fileMatch` listesine onu ekleyin. Şema Go regex sözdizimini
+doğrulamaz; regex derlemesi başlangıçta AES tarafından yapılır.
+
+Tüm süreler tam sayı saniyedir, `0..9223372036` aralığındadır.
+`try_count` negatif olmayan bir `int64` değeridir. Alan adları büyük/küçük harfe
+duyarlıdır; örneğin `ON_CONSUMTATION_TIMEOUT` yerine
+`on_consumption_timeout` kullanın.
+
+### Örnek manifestin davranışı
+
+1. `order.created`: yalnızca `orders` grubunun `orders-worker-` ile başlayan
+   instance'larına yapılan ilk teslimatları takip eder. Hata sonrası 30 saniye
+   bekler, en fazla 5 retry yapar. 120 saniyede sonuç gelmezse hata sayar.
+   Başarıları 1 saat, terminal hataları 1 gün saklar.
+2. `^payment\\.`: `payment.` ile başlayan subject'ler, tüm gruplar ve instance'lar
+   için geçerlidir. Açık hatalarda 60 saniye arayla sınırsız retry yapar.
+   300 saniyede sonuç gelmezse `keep` nedeniyle kaydı korur ve otomatik işlem
+   yapmaz. Başarılı kayıtlar 1 saat sonra silinir.
+3. `temporary.notification`: retry yapmaz. 600 saniyede sonuç gelmezse kayıt ve
+   ilişkili logları siler; başarılı kayıtları 60 saniye saklar. Diğer alanlarda
+   varsayılanlar uygulanır.
+
+Denemek için örnekten ihtiyacınız olan kuralları aktif manifestin `rules`
+listesine kopyalayın veya `E5_AES_RULES_FILE=aes.rules.example.json` ayarlayıp
+AES'i yeniden başlatın. İkinci seçenek örnekteki **tüm** kuralları etkinleştirir;
+özellikle `remove` politikasının veri silebileceğini dikkate alın.

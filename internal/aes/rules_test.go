@@ -65,3 +65,38 @@ func TestRulesValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestExampleManifest(t *testing.T) {
+	rules, err := LoadRules("../../aes.rules.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules.Rules) != 3 {
+		t.Fatalf("expected three example policies, got %d", len(rules.Rules))
+	}
+	order := rules.Match("order.created", "orders", "orders-worker-1")
+	if order == nil || order.TryAfter != 30 || order.TryCount != 5 ||
+		order.ConsumptionTimeout != 120 || order.OnConsumptionTimeout != "try" ||
+		order.RemoveSuccessfulTimeout != 3600 || order.RemoveFailedTimeout != 86400 {
+		t.Fatalf("order example differs from documented policy: %+v", order)
+	}
+	if rules.Match("order.created", "other", "orders-worker-1") != nil ||
+		rules.Match("order.created", "orders", "other") != nil {
+		t.Fatal("order example must filter initial consumer group and name")
+	}
+	payment := rules.Match("payment.completed", "any", "any")
+	if payment == nil || payment.TryAfter != 60 || payment.TryCount != 0 ||
+		payment.ConsumptionTimeout != 300 || payment.OnConsumptionTimeout != "keep" ||
+		payment.RemoveSuccessfulTimeout != 3600 || payment.RemoveFailedTimeout != 0 {
+		t.Fatalf("payment example differs from documented policy: %+v", payment)
+	}
+	if rules.Match("paymentXcompleted", "any", "any") != nil {
+		t.Fatal("payment regex must match a literal dot")
+	}
+	temporary := rules.Match("temporary.notification", "any", "any")
+	if temporary == nil || temporary.TryAfter != 0 || temporary.TryCount != 0 ||
+		temporary.ConsumptionTimeout != 600 || temporary.OnConsumptionTimeout != "remove" ||
+		temporary.RemoveSuccessfulTimeout != 60 || temporary.RemoveFailedTimeout != 0 {
+		t.Fatalf("temporary example differs from documented policy: %+v", temporary)
+	}
+}
