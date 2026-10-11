@@ -84,6 +84,9 @@ func fail(d *entity.AesDelivery, p Policy, now time.Time, reason string) {
 func (p *Processor) Handle(ctx context.Context, ev TapEvent, now time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if isRequestLog(ev.Kind) {
+		return p.handleRequest(ctx, ev, now)
+	}
 	tx, err := p.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -171,6 +174,9 @@ func (p *Processor) Handle(ctx context.Context, ev TapEvent, now time.Time) erro
 }
 
 func (p *Processor) Tick(ctx context.Context, now time.Time) error {
+	if err := p.cleanupRequests(ctx, now); err != nil {
+		return fmt.Errorf("clean AES request logs: %w", err)
+	}
 	ids, err := p.store.dueIDs(ctx, now)
 	if err != nil {
 		return err

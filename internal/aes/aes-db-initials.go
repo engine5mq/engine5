@@ -47,9 +47,17 @@ func ConnectToDatabase() (*e5dbase.DatabaseManager, error) {
 			dbManager.Close()
 			return nil, err
 		}
-	} else if err := store.CheckVersion(context.Background()); err != nil {
-		dbManager.Close()
-		return nil, err
+	} else {
+		if err := store.CheckVersion(context.Background()); err != nil {
+			dbManager.Close()
+			return nil, err
+		}
+		rows, err := dbManager.GetDB().Query(`SELECT id FROM aes_request LIMIT 0`)
+		if err != nil {
+			dbManager.Close()
+			return nil, fmt.Errorf("validate AES request retention table (enable E5_AES_DB_GENERATE_IF_NOT_EXIST to create it): %w", err)
+		}
+		rows.Close()
 	}
 
 	return dbManager, nil

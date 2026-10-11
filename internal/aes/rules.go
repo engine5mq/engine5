@@ -66,7 +66,26 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 }
 
 type Rules struct {
-	Rules []Rule `json:"rules"`
+	Rules        []Rule        `json:"rules"`
+	RequestRules []RequestRule `json:"request_rules"`
+}
+
+type RequestRule struct {
+	RequestSubjectKey SubjectKey `json:"request_subject_key"`
+	RemoveTimeout     int64      `json:"remove_timeout"`
+	subject           *regexp.Regexp
+}
+
+func (r *RequestRule) UnmarshalJSON(data []byte) error {
+	type plain RequestRule
+	value := plain{RemoveTimeout: 3600}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	*r = RequestRule(value)
+	return nil
 }
 
 func LoadRules(path string) (*Rules, error) {
@@ -94,19 +113,42 @@ func ReadRules(reader io.Reader) (*Rules, error) {
 			return nil, fmt.Errorf("AES rule %d: %w", i+1, err)
 		}
 	}
+	for i := range rules.RequestRules {
+		r := &rules.RequestRules[i]
+		var err error
+		r.subject, err = compileSubject(r.RequestSubjectKey)
+		if err != nil {
+			return nil, fmt.Errorf("AES request rule %d: request_subject_key: %w", i+1, err)
+		}
+		if err := validateSeconds(r.RemoveTimeout); err != nil {
+			return nil, fmt.Errorf("AES request rule %d: remove_timeout: %w", i+1, err)
+		}
+	}
 	return &rules, nil
 }
 
-func (r *Rule) compile() error {
-	if r.EventSubjectKey.Exact == "" && r.EventSubjectKey.Regex == "" {
-		return fmt.Errorf("event_subject_key is required")
+func compileSubject(key SubjectKey) (*regexp.Regexp, error) {
+	if key.Exact == "" && key.Regex == "" {
+		return nil, fmt.Errorf("a non-empty exact string or regex is required")
 	}
+	if key.Regex != "" {
+		return regexp.Compile(key.Regex)
+	}
+	return nil, nil
+}
+
+func validateSeconds(seconds int64) error {
+	if seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
+		return fmt.Errorf("timeouts must be non-negative seconds within time.Duration range")
+	}
+	return nil
+}
+
+func (r *Rule) compile() error {
 	var err error
-	if r.EventSubjectKey.Regex != "" {
-		r.subject, err = regexp.Compile(r.EventSubjectKey.Regex)
-		if err != nil {
-			return fmt.Errorf("subject regex: %w", err)
-		}
+	r.subject, err = compileSubject(r.EventSubjectKey)
+	if err != nil {
+		return fmt.Errorf("event_subject_key: %w", err)
 	}
 	for _, field := range []struct {
 		name   string
@@ -130,8 +172,8 @@ func (r *Rule) compile() error {
 	for _, seconds := range []int64{
 		r.TryAfter, r.RemoveSuccessfulTimeout, r.RemoveFailedTimeout, r.ConsumptionTimeout,
 	} {
-		if seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
-			return fmt.Errorf("timeouts must be non-negative seconds within time.Duration range")
+		if err := validateSeconds(seconds); err != nil {
+			return err
 		}
 	}
 	if r.TryCount < 0 {
@@ -148,12 +190,25 @@ func (r *Rule) compile() error {
 func (rules *Rules) Match(subject, group, instance string) *Rule {
 	for i := range rules.Rules {
 		r := &rules.Rules[i]
-		subjectMatches := subject == r.EventSubjectKey.Exact
-		if r.subject != nil {
-			subjectMatches = r.subject.MatchString(subject)
-		}
-		if subjectMatches && (r.group == nil || r.group.MatchString(group)) &&
+		if matchesSubject(r.EventSubjectKey, r.subject, subject) && (r.group == nil || r.group.MatchString(group)) &&
 			(r.name == nil || r.name.MatchString(instance)) {
+			return r
+		}
+	}
+	return nil
+}
+
+func matchesSubject(key SubjectKey, pattern *regexp.Regexp, subject string) bool {
+	if pattern != nil {
+		return pattern.MatchString(subject)
+	}
+	return subject == key.Exact
+}
+
+func (rules *Rules) MatchRequest(subject string) *RequestRule {
+	for i := range rules.RequestRules {
+		r := &rules.RequestRules[i]
+		if matchesSubject(r.RequestSubjectKey, r.subject, subject) {
 			return r
 		}
 	}

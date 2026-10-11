@@ -43,9 +43,11 @@ func (s *Store) Init(ctx context.Context) error {
 	}
 	deliveryIndex := ""
 	attemptIndex := ""
+	requestIndex := ""
 	if s.driver == "mysql" {
 		deliveryIndex = ", INDEX aes_delivery_due (due_at)"
 		attemptIndex = ", INDEX aes_attempt_delivery (delivery_id), INDEX aes_attempt_message (message_id, subject)"
+		requestIndex = ", INDEX aes_request_due (due_at)"
 	}
 	for _, query := range []string{
 		`CREATE TABLE IF NOT EXISTS aes_delivery (
@@ -55,6 +57,10 @@ func (s *Store) Init(ctx context.Context) error {
 			id VARCHAR(64) PRIMARY KEY, delivery_id VARCHAR(64) NOT NULL,
 			message_id VARCHAR(128) NOT NULL, subject VARCHAR(255) NOT NULL,
 			instance_group VARCHAR(128) NOT NULL` + attemptIndex + `)`,
+		`CREATE TABLE IF NOT EXISTS aes_request (
+			id VARCHAR(64) PRIMARY KEY, message_id VARCHAR(128) NOT NULL,
+			subject VARCHAR(255) NOT NULL, remove_timeout BIGINT NOT NULL,
+			due_at BIGINT NOT NULL` + requestIndex + `)`,
 	} {
 		if _, err := s.db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("create AES schema: %w", err)
@@ -66,6 +72,7 @@ func (s *Store) Init(ctx context.Context) error {
 			`CREATE INDEX IF NOT EXISTS aes_attempt_delivery ON aes_attempt (delivery_id)`,
 			`CREATE INDEX IF NOT EXISTS aes_attempt_message ON aes_attempt (message_id, subject)`,
 			`CREATE INDEX IF NOT EXISTS aes_tap_message ON aes_event_tap (message_id, subject)`,
+			`CREATE INDEX IF NOT EXISTS aes_request_due ON aes_request (due_at)`,
 		} {
 			if _, err := s.db.ExecContext(ctx, query); err != nil {
 				return err
@@ -216,7 +223,8 @@ func deleteDelivery(ctx context.Context, tx *sql.Tx, d *entity.AesDelivery) erro
 		return err
 	}
 	for _, message := range messages {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM aes_event_tap WHERE message_id = ? AND subject = ? AND instance_group = ?`,
+		if _, err := tx.ExecContext(ctx, `DELETE FROM aes_event_tap WHERE message_id = ? AND subject = ? AND instance_group = ?
+			AND kind IN ('EVENT_DELIVERED', 'CONSUMING_SUCCESS', 'CONSUMING_ERROR')`,
 			message, d.Subject, d.Group); err != nil {
 			return err
 		}

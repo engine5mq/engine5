@@ -53,4 +53,20 @@ func TestMySQLDeliveryLifecycle(t *testing.T) {
 	if f.delivery("mysql-original", "orders") != nil || f.count("aes_event_tap") != 0 || f.count("aes_attempt") != 0 {
 		t.Fatal("MySQL cleanup failed")
 	}
+	f.requestEvent("REQUEST_RECEIVED", "discarded", "ordinary")
+	if f.count("aes_event_tap") != 0 || f.count("aes_request") != 0 {
+		t.Fatal("MySQL saved default-discarded request")
+	}
+	setRequestRules(t, f, `[{"request_subject_key":"important","remove_timeout":30}]`)
+	f.requestEvent("REQUEST_RECEIVED", "mysql-request", "important")
+	f.requestEvent("REQUEST_ROUTED", "mysql-request", "important")
+	f.requestEvent("RESPONSE_RECEIVED", "mysql-request", "")
+	f.requestEvent("RESPONSE_DELIVERED", "mysql-request", "")
+	if f.count("aes_event_tap") != 4 || f.count("aes_request") != 1 {
+		t.Fatal("MySQL request correlation failed")
+	}
+	f.tick(30)
+	if f.count("aes_event_tap") != 0 || f.count("aes_request") != 0 {
+		t.Fatal("MySQL request cleanup failed")
+	}
 }

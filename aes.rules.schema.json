@@ -8,9 +8,15 @@
   "properties": {
     "rules": {
       "type": "array",
-      "description": "An empty array keeps tap logging enabled without automatic retry or cleanup.",
+      "description": "Event delivery rules. An empty array disables automatic event retry and cleanup; request logging is controlled separately.",
       "default": [],
       "items": { "$ref": "#/definitions/rule" }
+    },
+    "request_rules": {
+      "type": "array",
+      "description": "Opt-in request/response log retention by request subject. Omitted or empty: new requests are not saved. No retries.",
+      "default": [],
+      "items": { "$ref": "#/definitions/requestRule" }
     }
   },
   "definitions": {
@@ -26,6 +32,40 @@
       "default": "*",
       "description": "'*' matches all consumers; any other value is a Go regex. Use ^...$ for a full match."
     },
+    "subjectKey": {
+      "description": "A non-empty exact subject string or an object containing a Go regex.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["regex"],
+          "properties": {
+            "regex": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Go regex, compiled by AES at startup. Escape backslashes in JSON."
+            }
+          }
+        }
+      ]
+    },
+    "requestRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_subject_key"],
+      "properties": {
+        "request_subject_key": {
+          "allOf": [{ "$ref": "#/definitions/subjectKey" }],
+          "description": "Select requests to retain. Responses inherit the request's policy by messageId."
+        },
+        "remove_timeout": {
+          "allOf": [{ "$ref": "#/definitions/seconds" }],
+          "description": "Retention seconds from the first observed request log, whether or not a response arrives. 0 keeps the request logs indefinitely.",
+          "default": 3600
+        }
+      }
+    },
     "rule": {
       "type": "object",
       "additionalProperties": false,
@@ -33,21 +73,7 @@
       "properties": {
         "event_subject_key": {
           "description": "An exact subject string, or an object containing a Go regex. A string is never interpreted as a regex.",
-          "oneOf": [
-            { "type": "string", "minLength": 1 },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["regex"],
-              "properties": {
-                "regex": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "Go regex, compiled by AES at startup. Escape backslashes in JSON."
-                }
-              }
-            }
-          ]
+          "allOf": [{ "$ref": "#/definitions/subjectKey" }]
         },
         "instance_group": {
           "allOf": [{ "$ref": "#/definitions/consumerFilter" }],

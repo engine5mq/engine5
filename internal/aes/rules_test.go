@@ -57,6 +57,13 @@ func TestRulesValidation(t *testing.T) {
 		`{"rules":[{"event_subject_key":"x","typo":1}]}`,
 		`{"rules":[{"event_subject_key":{"regexp":"x"}}]}`,
 		`{"rules":[]} {}`,
+		`{"rules":[],"request_rules":[{}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":""}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":{"regex":"["}}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":"x","remove_timeout":-1}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":"x","remove_timeout":9223372037}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":"x","remove_timeout":0.5}]}`,
+		`{"rules":[],"request_rules":[{"request_subject_key":"x","try_after":30}]}`,
 	} {
 		t.Run(input, func(t *testing.T) {
 			if _, err := ReadRules(strings.NewReader(input)); err == nil {
@@ -98,5 +105,33 @@ func TestExampleManifest(t *testing.T) {
 		temporary.ConsumptionTimeout != 600 || temporary.OnConsumptionTimeout != "remove" ||
 		temporary.RemoveSuccessfulTimeout != 60 || temporary.RemoveFailedTimeout != 0 {
 		t.Fatalf("temporary example differs from documented policy: %+v", temporary)
+	}
+	audit := rules.MatchRequest("audit/payment-details")
+	permanent := rules.MatchRequest("audit/permanent/example")
+	if len(rules.RequestRules) != 2 || audit == nil || audit.RemoveTimeout != 86400 ||
+		permanent == nil || permanent.RemoveTimeout != 0 || rules.MatchRequest("ordinary") != nil {
+		t.Fatal("example request policies differ from documentation")
+	}
+}
+
+func TestRequestRulesDefaultsAndPrecedence(t *testing.T) {
+	rules, err := ReadRules(strings.NewReader(`{"rules":[],"request_rules":[
+		{"request_subject_key":"audit.details"},
+		{"request_subject_key":{"regex":"^audit\\."},"remove_timeout":0}
+	]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exact := rules.MatchRequest("audit.details")
+	regex := rules.MatchRequest("audit.other")
+	if exact == nil || exact.RemoveTimeout != 3600 || regex == nil || regex.RemoveTimeout != 0 {
+		t.Fatal("default, explicit zero or first-match precedence lost")
+	}
+	if rules.MatchRequest("auditXdetails") != nil {
+		t.Fatal("request subject string interpreted as regex")
+	}
+	empty, err := ReadRules(strings.NewReader(`{"rules":[]}`))
+	if err != nil || empty.MatchRequest("anything") != nil {
+		t.Fatal("omitted request_rules must discard new request logs")
 	}
 }
