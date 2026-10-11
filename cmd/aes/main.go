@@ -1,69 +1,67 @@
 package main
 
 import (
+	"context"
 	"engine5/internal/aes"
-	"engine5/internal/aes/entity"
 	"engine5/internal/common"
 	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 )
 
-// import "engine5/internal/server"
-
 func main() {
-	// server.Run()
-	// println("AES main function executed")
-	fmt.Println("Engine5 AES - (c) 2026 - Tetakent (H.C.G)")
-	fmt.Println("Starting Database connection")
+	if err := run(); err != nil {
+		slog.Error("AES stopped", "error", err)
+		os.Exit(1)
+	}
+}
 
+func run() error {
+	fmt.Println("Engine5 AES - (c) 2026 - Tetakent (H.C.G)")
+	config := common.GetAesConnectionConfig()
+	rules, err := aes.LoadRules(config.RulesFile)
+	if err != nil {
+		return err
+	}
 	dbManager, err := aes.ConnectToDatabase()
 	if err != nil {
-		fmt.Println("Failed to connect to database:", err)
-		return
+		return err
 	}
 	defer dbManager.Close()
 
-	fmt.Println("Connecting e5 server as exhaustive client.")
-	// TODO: E5'e tap client olarak bağlanmak için gerekli kodu buraya ekle.
+	clientConfig := common.GetClientConfig()
 	tapConfig := common.GetTapConfig()
+	publisher := aes.NewBrokerPublisher(aes.ConnectionInfo{
+		Host: clientConfig.Host, Port: strconv.Itoa(clientConfig.Port),
+		Key: config.AuthKey, UseTLS: clientConfig.TLSEnabled, CAFile: tapConfig.CAFile,
+	})
+	defer publisher.Close()
+	processor := aes.NewProcessor(aes.NewStore(dbManager), rules, publisher)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	tapManager := aes.NewTapManager(func(ev aes.TapEvent) {
-		// fmt.Printf("[%s] %s: %s | %s | %s | %s | %s | %s | %s | %s\n", ev.Time.Format("2006-01-02 15:04:05"), ev.Kind, ev.Group, ev.Instance, ev.Subject, ev.MessageId, ev.Remote, ev.Content, ev.Err, ev.Msg)
-		// TODO: Gelen olayları veritabanına kaydedeceğiz sonra
-		insertion, err := dbManager.Insert(
-			entity.AesEventTapTableName(),
-			(entity.AesEventTap{
-				Time:      ev.Time,
-				Level:     ev.Level,
-				Kind:      ev.Kind,
-				Instance:  ev.Instance,
-				Group:     ev.Group,
-				Subject:   ev.Subject,
-				MessageId: ev.MessageId,
-				Remote:    ev.Remote,
-				Content:   ev.Content,
-				Err:       ev.Err,
-				Msg:       ev.Msg,
-			}).KeyValuePairs(),
-		)
-
-		if err != nil {
-			fmt.Printf("Failed to insert event into database: %v\n", err)
-		} else {
-			lastInsertID, lastInsertErr := insertion.LastInsertId()
-			if lastInsertErr != nil {
-				fmt.Printf("Inserted event into database (ID unavailable): %v\n", lastInsertErr)
-			} else {
-				fmt.Printf("Inserted event into database with ID: %v\n", lastInsertID)
-			}
+		if err := processor.Handle(ctx, ev, time.Now()); err != nil && ctx.Err() == nil {
+			slog.Error("AES could not persist tap event", "kind", ev.Kind, "messageId", ev.MessageId, "error", err)
 		}
 	})
 	defer tapManager.Close()
 
+	schedulerDone := make(chan struct{})
+	go func() {
+		defer close(schedulerDone)
+		processor.Run(ctx)
+	}()
+	cancelTap := context.AfterFunc(ctx, tapManager.Close)
+	defer cancelTap()
 	tapManager.Connect(aes.ConnectionInfo{
-		Host:      tapConfig.Host,
-		Port:      tapConfig.Port,
-		Key:       tapConfig.Key,
-		UseTLS:    tapConfig.UseTLS,
-		CAFile:    tapConfig.CAFile,
-		Reconnect: tapConfig.Reconnect,
+		Host: tapConfig.Host, Port: tapConfig.Port, Key: tapConfig.Key,
+		UseTLS: tapConfig.UseTLS, CAFile: tapConfig.CAFile, Reconnect: tapConfig.Reconnect,
 	})
+	stop()
+	<-schedulerDone
+	return nil
 }

@@ -2,12 +2,15 @@ package aes
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,17 +22,18 @@ const (
 )
 
 type TapEvent struct {
-	Time      time.Time `json:"time"`
-	Level     string    `json:"level"`
-	Kind      string    `json:"kind"`
-	Instance  string    `json:"instance"`
-	Group     string    `json:"group"`
-	Subject   string    `json:"subject"`
-	MessageId string    `json:"messageId"`
-	Remote    string    `json:"remote"`
-	Content   string    `json:"content"`
-	Err       string    `json:"err"`
-	Msg       string    `json:"msg"`
+	Time              time.Time `json:"time"`
+	Level             string    `json:"level"`
+	Kind              string    `json:"kind"`
+	Instance          string    `json:"instance"`
+	Group             string    `json:"group"`
+	Subject           string    `json:"subject"`
+	MessageId         string    `json:"messageId"`
+	OriginalMessageId string    `json:"originalMessageId"`
+	Remote            string    `json:"remote"`
+	Content           string    `json:"content"`
+	Err               string    `json:"err"`
+	Msg               string    `json:"msg"`
 }
 
 type ConnectionInfo struct {
@@ -42,7 +46,9 @@ type ConnectionInfo struct {
 }
 
 type TapManager struct {
-	willClose  bool
+	willClose  atomic.Bool
+	mu         sync.Mutex
+	conn       net.Conn
 	onTapEvent func(TapEvent)
 }
 
@@ -52,7 +58,12 @@ func NewTapManager(onTapEvent func(TapEvent)) *TapManager {
 }
 
 func (tm *TapManager) Close() {
-	tm.willClose = true
+	tm.willClose.Store(true)
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	if tm.conn != nil {
+		tm.conn.Close()
+	}
 }
 
 func (tm *TapManager) HandleEvent(ev TapEvent) {
@@ -62,7 +73,7 @@ func (tm *TapManager) HandleEvent(ev TapEvent) {
 }
 
 func (tm *TapManager) shouldClose() bool {
-	return tm.willClose
+	return tm.willClose.Load()
 }
 
 func (tm *TapManager) Connect(info ConnectionInfo) {
@@ -72,8 +83,8 @@ func (tm *TapManager) Connect(info ConnectionInfo) {
 			return
 		}
 
-		err := stream(addr, info.Key, info.UseTLS, false, info.CAFile, false, tm.HandleEvent, tm.shouldClose)
-		if err != nil {
+		err := tm.stream(addr, info)
+		if err != nil && !tm.shouldClose() {
 			fmt.Fprintf(os.Stderr, "e5-tap: %v\n", err)
 		}
 
@@ -91,8 +102,15 @@ func (tm *TapManager) Connect(info ConnectionInfo) {
 
 // dial creates a TCP/TLS connection depending on the given options.
 func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
+	defer cancel()
+	return dialContext(ctx, addr, useTLS, insecure, caFile)
+}
+
+func dialContext(ctx context.Context, addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
+	dialer := &net.Dialer{Timeout: defaultDialTimeout}
 	if !useTLS {
-		return net.DialTimeout("tcp", addr, defaultDialTimeout)
+		return dialer.DialContext(ctx, "tcp", addr)
 	}
 
 	tlsConf := &tls.Config{InsecureSkipVerify: insecure} // #nosec G402 -- -insecure yalnızca açıkça istenirse
@@ -107,23 +125,30 @@ func dial(addr string, useTLS, insecure bool, caFile string) (net.Conn, error) {
 		}
 		tlsConf.RootCAs = pool
 	}
-	return tls.DialWithDialer(&net.Dialer{Timeout: defaultDialTimeout}, "tcp", addr, tlsConf)
+	return (&tls.Dialer{NetDialer: dialer, Config: tlsConf}).DialContext(ctx, "tcp", addr)
 }
 
 // stream connects to remote tap source and processes incoming NDJSON events.
-func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb func(TapEvent), cbCloseRequest func() bool) error {
-	if cbCloseRequest != nil && cbCloseRequest() {
+func (tm *TapManager) stream(addr string, info ConnectionInfo) error {
+	if tm.shouldClose() {
 		return fmt.Errorf("connection closed by request")
 	}
-	conn, err := dial(addr, useTLS, insecure, caFile)
+	conn, err := dial(addr, info.UseTLS, false, info.CAFile)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	tm.mu.Lock()
+	tm.conn = conn
+	closed := tm.shouldClose()
+	tm.mu.Unlock()
+	if closed {
+		return nil
+	}
 
 	// Ortak anahtar varsa ilk satır olarak gönder.
-	if key != "" {
-		if _, err := conn.Write([]byte(key + "\n")); err != nil {
+	if info.Key != "" {
+		if _, err := conn.Write([]byte(info.Key + "\n")); err != nil {
 			return fmt.Errorf("failed to send key: %w", err)
 		}
 	}
@@ -134,21 +159,15 @@ func stream(addr, key string, useTLS, insecure bool, caFile string, raw bool, cb
 	scanner.Buffer(make([]byte, 0, initialScannerBuffer), maxScannerBuffer)
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		if raw {
-			fmt.Println(string(line))
-			continue
-		}
 		var ev TapEvent
 		if err := json.Unmarshal(line, &ev); err != nil {
-			fmt.Println(string(line)) // parse edilemiyorsa ham bas
+			fmt.Fprintf(os.Stderr, "aes tap: invalid event: %v\n", err)
 			continue
 		}
 
-		if cb != nil {
-			cb(ev)
-		}
+		tm.HandleEvent(ev)
 
-		if cbCloseRequest != nil && cbCloseRequest() {
+		if tm.shouldClose() {
 			return nil
 		}
 	}

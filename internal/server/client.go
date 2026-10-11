@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"log/slog"
 	"net"
 	"time"
@@ -115,9 +116,10 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	if err := connCl.AuthorizePayload(pl); err != nil {
 		connCl.Write(Payload{
-			Command: CtUnauthorized,
-			Content: err.Error(),
-			Subject: pl.Subject,
+			Command:   CtUnauthorized,
+			Content:   err.Error(),
+			Subject:   pl.Subject,
+			MessageId: pl.MessageId,
 		})
 		return
 	}
@@ -138,10 +140,18 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		msg := MessageFromPayload(pl)
 		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+	case CtRetryEvent:
+		if pl.Subject == "" || pl.MessageId == "" || pl.OriginalMessageId == "" {
+			connCl.Write(Payload{Command: CtRetryError, MessageId: pl.MessageId, Subject: pl.Subject, Content: "Retry requires subject, messageId and originalMessageId"})
+			return
+		}
+		msg := MessageFromPayload(pl)
+		msg.retrySender = connCl
+		connCl.operator.addEvent(msg)
 	case CtConsumingSuccess:
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindConsumingSuccess, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client consumed a message successfully"})
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindConsumingSuccess, Instance: connCl.instanceName, Group: connCl.instanceGroup, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client consumed a message successfully"})
 	case CtConsumingError:
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindConsumingError, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client failed to consume a message"})
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindConsumingError, Instance: connCl.instanceName, Group: connCl.instanceGroup, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client failed to consume a message"})
 	case CtRequest:
 		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindRequestReceived, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client sent a request"})
 		msg := MessageFromPayload(pl)
@@ -158,24 +168,26 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 }
 
 func (connCl *ConnectedClient) Write(pl Payload) {
+	if err := connCl.queuePayload(pl); err != nil && connCl != nil && connCl.operator != nil && connCl.operator.exhaust != nil {
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to queue payload", Err: err.Error()})
+	}
+}
+
+func (connCl *ConnectedClient) queuePayload(pl Payload) error {
 	if connCl == nil || connCl.connection == nil || connCl.died || connCl.writeQueue == nil {
-		return
+		return fmt.Errorf("client is not connected")
 	}
 
 	json, err := pl.toMsgPak()
 	if err != nil {
-		if connCl.operator != nil && connCl.operator.exhaust != nil {
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to encode payload", Err: err.Error()})
-		}
-		return
+		return fmt.Errorf("encode payload: %w", err)
 	}
 
 	select {
 	case connCl.writeQueue <- json:
+		return nil
 	default:
-		if connCl.operator != nil && connCl.operator.exhaust != nil {
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Write queue full, dropping payload"})
-		}
+		return fmt.Errorf("write queue full")
 	}
 }
 

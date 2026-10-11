@@ -23,7 +23,11 @@ const (
 	/* Client MQS'ye
 	`Content` ve `Subject` ile "EVENT" gönderir.
 	Bu, bütün Subject'i dinleyen Client'lara MessageId ile gönderilir */
-	CtEvent = "EVENT"
+	CtEvent         = "EVENT"
+	CtRetryEvent    = "RETRY_EVENT"
+	CtRetryAccepted = "RETRY_ACCEPTED"
+	CtRetryNoTarget = "RETRY_NO_TARGET"
+	CtRetryError    = "RETRY_ERROR"
 	/* Event MQS tarafından alındıysa, Eventi üreten Client'a Subject ve `MessageId` ile "RECIEVED" gönderilecektir*/
 	CtRecieved = "RECIEVED"
 	// Eventi alan client Received dönecektir
@@ -68,7 +72,8 @@ type Payload struct {
 	// Connect
 	InstanceId string `json:"instanceId"`
 	// Event, Request
-	MessageId string `json:"messageId"`
+	MessageId         string `json:"messageId"`
+	OriginalMessageId string `json:"originalMessageId,omitempty"`
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
 	ResponseErrorSide   string

@@ -63,4 +63,6 @@ const (
 	EnvAesDbDriver             = "E5_AES_DB_DRIVER"
 	EnvAesDbGenerateIfNotExist = "E5_AES_DB_GENERATE_IF_NOT_EXIST"
 	EnvAesDbShowQueries        = "E5_AES_DB_SHOW_QUERIES"
+	EnvAesRulesFile            = "E5_AES_RULES_FILE"
+	EnvAesAuthKey              = "E5_AES_AUTH_KEY"
 )

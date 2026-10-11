@@ -7,4 +7,5 @@ A lightweight MQ service that is written in golang
 
 ## Detailed documentation
 
-Soon i hope...
+- [AES retry and retention (Turkish)](./docs/tr-tr/4%20-%20aes.md)
+- [Exhaust / tap (Turkish)](./docs/tr-tr/3%20-%20exhaust.md)

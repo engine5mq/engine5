@@ -1,7 +1,7 @@
 package aes
 
 import (
-	"engine5/internal/aes/entity"
+	"context"
 	"engine5/internal/common"
 	"engine5/internal/e5dbase"
 	"fmt"
@@ -9,12 +9,12 @@ import (
 
 func validateDBDriver(dbDriver string) error {
 	switch dbDriver {
-	case "mysql", "postgres":
+	case "mysql":
 		return nil
 	case "":
 		return fmt.Errorf("database driver is not specified in the configuration")
 	default:
-		return fmt.Errorf("unsupported database driver %q", dbDriver)
+		return fmt.Errorf("unsupported AES database driver %q (schema v1 requires mysql)", dbDriver)
 	}
 }
 
@@ -37,10 +37,19 @@ func ConnectToDatabase() (*e5dbase.DatabaseManager, error) {
 	}
 
 	dbManager.SetShowQueries(config.DBShowQueries)
+	if err := dbManager.GetDB().Ping(); err != nil {
+		dbManager.Close()
+		return nil, fmt.Errorf("connect AES database: %w", err)
+	}
+	store := NewStore(dbManager)
 	if config.DBGenerateIfNotExist {
-		if err := dbManager.CreateTable(entity.AesEventTapTableDefinition()); err != nil {
+		if err := store.Init(context.Background()); err != nil {
+			dbManager.Close()
 			return nil, err
 		}
+	} else if err := store.CheckVersion(context.Background()); err != nil {
+		dbManager.Close()
+		return nil, err
 	}
 
 	return dbManager, nil

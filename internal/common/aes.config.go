@@ -19,6 +19,8 @@ type AesConnectionConfig struct {
 	DBGenerateIfNotExist bool
 	DBSSLEnable          bool
 	DBShowQueries        bool
+	RulesFile            string
+	AuthKey              string
 }
 
 var (
@@ -32,14 +34,16 @@ func ReadAesConnectionConfigFromEnv() *AesConnectionConfig {
 		RestApiHost:          EnvOr(EnvAesRestApiHost, "localhost"),
 		RestApiPort:          EnvIntOr(EnvAesRestApiPort, 8080),
 		DBHost:               EnvOr(EnvAesDbHost, "localhost"),
-		DBPort:               EnvIntOr(EnvAesDbPort, 5432),
+		DBPort:               EnvIntOr(EnvAesDbPort, 3306),
 		DBUser:               EnvOr(EnvAesDbUser, "user"),
 		DBPassword:           EnvOrAllowEmpty(EnvAesDbPassword, "password"),
 		DBName:               EnvOr(EnvAesDbName, "aes_db"),
-		DBDriver:             EnvOr(EnvAesDbDriver, "postgres"),
+		DBDriver:             EnvOr(EnvAesDbDriver, "mysql"),
 		DBSSLEnable:          EnvBoolOr(EnvAesDbSSLMode, false),
 		DBGenerateIfNotExist: EnvBoolOr(EnvAesDbGenerateIfNotExist, true),
 		DBShowQueries:        EnvBoolOr(EnvAesDbShowQueries, false),
+		RulesFile:            EnvOr(EnvAesRulesFile, "aes.rules.json"),
+		AuthKey:              EnvOrAllowEmpty(EnvAesAuthKey, ""),
 	}
 }
 

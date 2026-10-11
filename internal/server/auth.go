@@ -45,7 +45,7 @@ type AuthenticatedClient struct {
 
 func commandToAction(command string) string {
 	switch command {
-	case CtEvent:
+	case CtEvent, CtRetryEvent:
 		return "publish"
 	case CtListen:
 		return "subscribe"

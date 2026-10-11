@@ -2,6 +2,7 @@ package entity
 
 import (
 	"database/sql"
+	"encoding/json"
 	"engine5/internal/e5dbase"
 	"time"
 )
@@ -16,12 +17,28 @@ type AesEventTap struct {
 	Subject   string    `json:"subject,omitempty"`
 	MessageId string    `json:"messageId,omitempty"`
 	Remote    string    `json:"remote,omitempty"`
-	// Content hassas veri içerebilir; varsayılan olarak maskelenir.
-	// Yalnızca E5_EXHAUST_INCLUDE_CONTENT=true iken doldurulur.
+	// Tap içeriği orijinal body'dir; konsol maskelemesinden bağımsızdır.
 	Content string `json:"content,omitempty"`
 	Err     string `json:"err,omitempty"`
 	// Msg, olaya eşlik eden okunabilir kısa açıklamadır.
 	Msg string `json:"msg,omitempty"`
+}
+
+type AesDelivery struct {
+	Id                string    `json:"id"`
+	OriginalMessageId string    `json:"original_message_id"`
+	Subject           string    `json:"subject"`
+	Group             string    `json:"group"`
+	Instance          string    `json:"instance"`
+	Content           string    `json:"content"`
+	State             string    `json:"state"`
+	RetryCount        int64     `json:"retry_count"`
+	AttemptMessageId  string    `json:"attempt_message_id"`
+	NextActionAt      time.Time `json:"next_action_at"`
+	LastError         string    `json:"last_error"`
+	CompletedAt       time.Time `json:"completed_at"`
+	// Policy is snapshotted so restarting with different rules does not reset pending work.
+	Policy json.RawMessage `json:"policy"`
 }
 
 func FromSqlRow(row *sql.Row) (interface{}, error) {
