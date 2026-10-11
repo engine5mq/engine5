@@ -12,6 +12,15 @@ func EnvOr(key, def string) string {
 	return def
 }
 
+// EnvOrAllowEmpty returns the env value when the key exists, even if empty.
+// This is useful for settings where an explicit empty string is meaningful.
+func EnvOrAllowEmpty(key, def string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return def
+}
+
 func EnvIntOr(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		var parsed int
@@ -23,15 +32,8 @@ func EnvIntOr(key string, def int) int {
 }
 
 func EnvBoolOr(key string, def bool) bool {
-	if v := os.Getenv(key); v != "" {
-		switch v {
-		case "1", "true", "TRUE", "yes", "YES", "on", "ON":
-			return true
-		case "0", "false", "FALSE", "no", "NO", "off", "OFF":
-			return false
-		}
-	}
-	return def
+	return BoolStringOrDefault(os.Getenv(key), def)
+
 }
 
 func envOr(key, def string) string {
