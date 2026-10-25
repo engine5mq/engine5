@@ -13,6 +13,7 @@ type Message struct {
 	targetInstanceGroupName string
 	commandType             string
 	ResponseOfMessageId     string
+	isError                 bool
 	originalMessageId       string
 	retrySender             *ConnectedClient
 }
@@ -26,6 +27,7 @@ func MessageFromPayload(pl Payload) Message {
 		targetInstanceGroupName: pl.InstanceGroup,
 		commandType:             pl.Command,
 		ResponseOfMessageId:     pl.ResponseOfMessageId,
+		isError:                 pl.IsError,
 		originalMessageId:       pl.OriginalMessageId,
 	}
 }

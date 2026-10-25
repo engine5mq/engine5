@@ -76,6 +76,7 @@ type Payload struct {
 	OriginalMessageId string `json:"originalMessageId,omitempty"`
 	// Response
 	ResponseOfMessageId string `json:"responseOfMessageId"`
+	IsError             bool   `json:"isError"`
 	ResponseErrorSide   string
 	// Auth
 	AuthKey string `json:"authKey"`

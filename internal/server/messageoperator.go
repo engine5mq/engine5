@@ -93,6 +93,7 @@ func (op *MessageOperator) DistrubuteResponses() {
 					Content:             messageIncoming.content,
 					Subject:             messageIncoming.targetSubjectName,
 					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
+					IsError:             messageIncoming.isError,
 				})
 				op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseDelivered, Instance: ongoingReq.targetInstance.instanceName, Subject: messageIncoming.targetSubjectName, MessageId: messageIncoming.ResponseOfMessageId, Content: messageIncoming.content, Msg: "Response delivered to requester"})
 				// TODO: tamamlandıysa (ya da bilgi verilmemişse) sil, tamamlanmadıysa akıtmaya devam et
