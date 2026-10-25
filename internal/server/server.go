@@ -142,6 +142,7 @@ func handleConnection(conn net.Conn, op *MessageOperator) {
 
 	connCl.authClient = authClient
 	connCl.SetConnection(conn)
+	connCl.SetOperator(op)
 	op.addConnectedClient(&connCl)
 
 	go connCl.ReaderLoop()

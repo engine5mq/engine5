@@ -1,0 +1,8 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["/aes.rules.json", "/aes.rules.example.json"],
+      "url": "./aes.rules.schema.json"
+    }
+  ]
+}

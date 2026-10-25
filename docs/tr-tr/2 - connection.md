@@ -72,3 +72,14 @@ Hatalı bağlantı:
 - `instanceId` boş gelirse sunucu otomatik UUID üretir.
 - `instance_group` boş gelirse `instanceId` değeri kullanılır.
 - Bağlandıktan sonra tipik komutlar: `LISTEN`, `EVENT`, `REQUEST`, `RESPONSE`, `CLOSE`. Çok yakında bu komutlar açıklanacak ancak kaynak kodları da inceleyebilirsiniz
+
+## 5) Response hata bilgisi
+
+`RESPONSE` mesajlarında `IsError` boolean alanı kullanılabilir. Sunucu bu
+bilgiyi `Content` ve `ResponseOfMessageId` ile birlikte isteği yapan istemciye
+aynen iletir; hata durumunda da komut `RESPONSE` olarak kalır. Alan
+gönderilmezse `false` kabul edilir. Hata içeriğinin formatını ve nasıl
+işleneceğini istemciler belirler; mevcut `RESPONSE_ERROR` akışı değişmez.
+
+Alan Go tarafında `Payload.IsError`, JSON gösteriminde `isError`,
+mevcut MessagePack protokolünde ise `IsError` olarak adlandırılır.

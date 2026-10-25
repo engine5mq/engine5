@@ -24,19 +24,22 @@ Konsol çıkışı `slog` tabanlıdır ve şu ortam değişkenleriyle yönetilir
 | `E5_ENV` | `development` | `production` → konsol **kapalı** |
 | `E5_LOG_LEVEL` | dev=`DEBUG`, prod=`OFF` | `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF` |
 | `E5_LOG_FORMAT` | dev=`text`, prod=`json` | Konsol formatı |
-| `E5_EXHAUST_INCLUDE_CONTENT` | `false` | Payload `content` alanı maskelenir (`[hidden]`) |
+| `E5_EXHAUST_INCLUDE_CONTENT` | `false` | Konsoldaki `content` alanı maskelenir (`[hidden]`); tap body değiştirilmez |
 
 > Not: Production'da `E5_LOG_LEVEL` elle bir seviyeye ayarlanırsa konsol tekrar
 > açılır.
 
 ### Gizlilik
 
-Payload `content` alanı hassas veri içerebilir. Bu yüzden egzoz olaylarında
-`content` **varsayılan olarak maskelenir**. Görmek için:
+Payload `content` alanı hassas veri içerebilir. Bu yüzden **konsol çıktısında**
+`content` varsayılan olarak maskelenir. Konsolda görmek için:
 
 ```env
 E5_EXHAUST_INCLUDE_CONTENT=true
 ```
+
+Tap bağlı istemcilere orijinal body'yi gönderir; bu değişken tap'ı etkilemez.
+AES retry ve saklama ayarları için [AES dokümanına](./4%20-%20aes.md) bakın.
 
 ---
 
@@ -86,7 +89,7 @@ Her olay tek satır JSON'dur. Alanlar:
 	"subject": "user.created",
 	"messageId": "abc-123",
 	"remote": "10.0.0.5:5567",
-	"content": "[hidden]",
+	"content": "{\"userId\":42}",
 	"err": "",
 	"msg": "Event delivered to client"
 }
@@ -106,6 +109,8 @@ Her olay tek satır JSON'dur. Alanlar:
 | `EVENT_RECEIVED` | Client event gönderdi |
 | `EVENT_DELIVERED` | Event bir client'a iletildi |
 | `EVENT_NO_LISTENER` | Event'i dinleyen client yok |
+| `CONSUMING_SUCCESS` | Tüketici mesajı başarıyla işledi |
+| `CONSUMING_ERROR` | Tüketici mesajı işlerken hata aldı |
 | `REQUEST_RECEIVED` | Client request gönderdi |
 | `REQUEST_ROUTED` | Request bir client'a yönlendirildi |
 | `REQUEST_NO_TARGET` | Kritere uyan client bulunamadı |
@@ -164,7 +169,7 @@ go run ./cmd/e5-tap -raw | jq
 - **Production gözlemlenebilirlik**: Konsol kapalı tutulur (`E5_ENV=production`),
   tap açılır (`E5_EXHAUST_ENABLE=true`). Harici bir izleme uygulaması veya
   `e5-tap` portu dinleyerek tüm akışı toplar.
-- **Hata ayıklama**: `E5_EXHAUST_INCLUDE_CONTENT=true` ile payload içerikleri de
-  akışa dahil edilir.
+- **Hata ayıklama**: `E5_EXHAUST_INCLUDE_CONTENT=true` ile payload içerikleri
+  konsolda da görünür; tap akışında body her zaman orijinaldir.
 - **Entegrasyon**: NDJSON formatı sayesinde akış, `jq` veya herhangi bir dildeki
   bir tüketici tarafından kolayca işlenebilir.

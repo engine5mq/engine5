@@ -93,8 +93,11 @@ func (op *MessageOperator) DistrubuteResponses() {
 					Content:             messageIncoming.content,
 					Subject:             messageIncoming.targetSubjectName,
 					ResponseOfMessageId: messageIncoming.ResponseOfMessageId,
+					IsError:             messageIncoming.isError,
 				})
 				op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseDelivered, Instance: ongoingReq.targetInstance.instanceName, Subject: messageIncoming.targetSubjectName, MessageId: messageIncoming.ResponseOfMessageId, Content: messageIncoming.content, Msg: "Response delivered to requester"})
+				// TODO: tamamlandıysa (ya da bilgi verilmemişse) sil, tamamlanmadıysa akıtmaya devam et
+				// if messageIncoming.completed
 				delete(op.ongoingRequests, messageIncoming.ResponseOfMessageId)
 			}
 		}
@@ -228,6 +231,10 @@ func (op *MessageOperator) addEvent(msg Message) {
 
 // PublishEventMessage sends an event message to all relevant clients.
 func (op *MessageOperator) PublishEventMessage(msg Message) {
+	if msg.commandType == CtRetryEvent {
+		op.publishRetry(msg)
+		return
+	}
 	sentGroups := make(map[string]bool)
 	delivered := false
 	for _, instance := range op.instances {
@@ -257,5 +264,35 @@ func (op *MessageOperator) PublishEventMessage(msg Message) {
 	}
 	if !delivered {
 		op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindEventNoListener, Subject: msg.targetSubjectName, MessageId: msg.id, Msg: "Event had no listeners"})
+	}
+}
+
+func (op *MessageOperator) publishRetry(msg Message) {
+	reply := Payload{Command: CtRetryNoTarget, MessageId: msg.id, Subject: msg.targetSubjectName}
+	for _, instance := range op.instances {
+		if instance == nil || instance.died || instance.connection == nil ||
+			instance.instanceGroup != msg.targetInstanceGroupName || !instance.IsListening(msg.targetSubjectName) {
+			continue
+		}
+		err := instance.queuePayload(Payload{
+			Command: CtEvent, Subject: msg.targetSubjectName, Content: msg.content,
+			MessageId: msg.id, OriginalMessageId: msg.originalMessageId,
+		})
+		if err != nil {
+			reply.Command = CtRetryError
+			reply.Content = err.Error()
+			op.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindInternalError, Instance: instance.instanceName,
+				Group: instance.instanceGroup, Subject: msg.targetSubjectName, MessageId: msg.id, Err: err.Error(), Msg: "Retry could not be queued"})
+			continue
+		}
+		reply.Command = CtRetryAccepted
+		reply.Content = ""
+		op.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindEventDelivered, Instance: instance.instanceName,
+			Group: instance.instanceGroup, Subject: msg.targetSubjectName, MessageId: msg.id,
+			OriginalMessageId: msg.originalMessageId, Content: msg.content, Msg: "Retry delivered to client"})
+		break
+	}
+	if msg.retrySender != nil {
+		msg.retrySender.Write(reply)
 	}
 }

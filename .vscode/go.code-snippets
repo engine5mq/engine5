@@ -1,0 +1,66 @@
+{
+  "DB tag basic": {
+    "scope": "go",
+    "prefix": "dbtag",
+    "description": "Basic db tag with explicit column name and type",
+    "body": [
+      "${1:Field} ${2:string} `json:\"${3:field}\" db:\"${4:field}\" type:\"${5:varchar}\"${6:}`"
+    ]
+  },
+  "DB tag with size": {
+    "scope": "go",
+    "prefix": "dbsize",
+    "description": "DB tag with type and size",
+    "body": [
+      "${1:Field} ${2:string} `json:\"${3:field}\" db:\"${4:field}\" type:\"${5:varchar}\" size:\"${6:128}\"${7:}`"
+    ]
+  },
+  "DB UUID primary key": {
+    "scope": "go",
+    "prefix": "dbuuid",
+    "description": "UUID primary key with safe function default",
+    "body": [
+      "${1:Id} string `json:\"id\" db:\"id\" type:\"varchar\" size:\"36\" primary_key:\"true\" not_null:\"true\" safe_func:\"UUID\"`"
+    ]
+  },
+  "DB timestamp default": {
+    "scope": "go",
+    "prefix": "dbtime",
+    "description": "Timestamp field with CURRENT_TIMESTAMP default",
+    "body": [
+      "${1:CreatedAt} time.Time `json:\"${2:createdAt}\" db:\"${3:created_at}\" type:\"timestamp\" not_null:\"true\" safe_func:\"CURRENT_TIMESTAMP\"`"
+    ]
+  },
+  "DB text field": {
+    "scope": "go",
+    "prefix": "dbtext",
+    "description": "Long text field for payloads/messages",
+    "body": [
+      "${1:Content} string `json:\"${2:content,omitempty}\" db:\"${3:content}\" type:\"longtext\"`"
+    ]
+  },
+  "DB ignore field": {
+    "scope": "go",
+    "prefix": "dbignore",
+    "description": "Skip field from schema generation",
+    "body": [
+      "${1:Temp} ${2:string} `json:\"${3:temp,omitempty}\" db_ignore:\"true\"`"
+    ]
+  },
+  "DB safe_func values": {
+    "scope": "go",
+    "prefix": "dbsafe",
+    "description": "Allowed safe function values",
+    "body": [
+      "safe_func:\"${1|UUID,NOW,CURRENT_TIMESTAMP,CURRENT_DATE,CURRENT_TIME,LOCALTIME,LOCALTIMESTAMP,TRUE,FALSE,NULL|}\""
+    ]
+  },
+  "DB common type values": {
+    "scope": "go",
+    "prefix": "dbtype",
+    "description": "Common type values used by schema generator",
+    "body": [
+      "type:\"${1|varchar,timestamp,int,bigint,float,double,boolean,text,longtext,mediumtext|}\"${2: size:\"128\"}"
+    ]
+  }
+}

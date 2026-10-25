@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"log/slog"
 	"net"
 	"time"
@@ -35,14 +36,24 @@ func (connCl *ConnectedClient) SetConnection(conn net.Conn) {
 }
 
 func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
+	if connCl == nil {
+		return
+	}
+
+	if connCl.authClient == nil {
+		connCl.authClient = &AuthenticatedClient{ConnectedClient: connCl}
+	}
+
 	// Check authentication if required
-	if connCl.operator.authConfig.RequireAuth {
+	if connCl.operator != nil && connCl.operator.authConfig != nil && connCl.operator.authConfig.RequireAuth {
 		if payload.AuthKey == "" {
 			connCl.Write(Payload{
 				Command: CtConnectError,
 				Content: "Authentication required: auth key missing",
 			})
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Msg: "Connection rejected: auth key missing"})
+			if connCl.operator != nil && connCl.operator.exhaust != nil {
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Msg: "Connection rejected: auth key missing"})
+			}
 			connCl.Die()
 			return
 		}
@@ -60,7 +71,9 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 				Command: CtConnectError,
 				Content: "Authentication failed: " + err.Error(),
 			})
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Instance: clientID, Msg: "Connection rejected", Err: err.Error()})
+			if connCl.operator != nil && connCl.operator.exhaust != nil {
+				connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindAuthRejected, Instance: clientID, Msg: "Connection rejected", Err: err.Error()})
+			}
 			connCl.Die()
 			return
 		}
@@ -75,7 +88,9 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 			ExpiresAt:   now.Add(connCl.operator.authConfig.TokenExpiry),
 		}
 		connCl.authClient.RateLimiter = NewRateLimiter(permissions.RateLimit)
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindAuthOk, Instance: clientID, Msg: "Client authenticated successfully"})
+		if connCl.operator != nil && connCl.operator.exhaust != nil {
+			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindAuthOk, Instance: clientID, Msg: "Client authenticated successfully"})
+		}
 	}
 
 	// aynı olan instance idleri
@@ -93,15 +108,18 @@ func (connCl *ConnectedClient) BeSureConnection(payload Payload) {
 	backPayload := Payload{Command: CtConnectSuccess, InstanceId: connCl.instanceName, InstanceGroup: payload.InstanceGroup}
 	connCl.died = false
 	connCl.Write(backPayload)
-	connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnected, Instance: connCl.instanceName, Group: connCl.instanceGroup, Msg: "Client connected"})
+	if connCl.operator != nil && connCl.operator.exhaust != nil {
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientConnected, Instance: connCl.instanceName, Group: connCl.instanceGroup, Msg: "Client connected"})
+	}
 }
 
 func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 	if err := connCl.AuthorizePayload(pl); err != nil {
 		connCl.Write(Payload{
-			Command: CtUnauthorized,
-			Content: err.Error(),
-			Subject: pl.Subject,
+			Command:   CtUnauthorized,
+			Content:   err.Error(),
+			Subject:   pl.Subject,
+			MessageId: pl.MessageId,
 		})
 		return
 	}
@@ -122,10 +140,18 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		msg := MessageFromPayload(pl)
 		connCl.operator.addEvent(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
+	case CtRetryEvent:
+		if pl.Subject == "" || pl.MessageId == "" || pl.OriginalMessageId == "" {
+			connCl.Write(Payload{Command: CtRetryError, MessageId: pl.MessageId, Subject: pl.Subject, Content: "Retry requires subject, messageId and originalMessageId"})
+			return
+		}
+		msg := MessageFromPayload(pl)
+		msg.retrySender = connCl
+		connCl.operator.addEvent(msg)
 	case CtConsumingSuccess:
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindConsumingSuccess, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client consumed a message successfully"})
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindConsumingSuccess, Instance: connCl.instanceName, Group: connCl.instanceGroup, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client consumed a message successfully"})
 	case CtConsumingError:
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindConsumingError, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client failed to consume a message"})
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindConsumingError, Instance: connCl.instanceName, Group: connCl.instanceGroup, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client failed to consume a message"})
 	case CtRequest:
 		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindRequestReceived, Instance: connCl.instanceName, Subject: pl.Subject, MessageId: pl.MessageId, Content: pl.Content, Msg: "Client sent a request"})
 		msg := MessageFromPayload(pl)
@@ -142,13 +168,26 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 }
 
 func (connCl *ConnectedClient) Write(pl Payload) {
-	if connCl.connection != nil && !connCl.died {
-		json, err := pl.toMsgPak()
-		if err != nil {
-			connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelError, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to encode payload", Err: err.Error()})
-		}
-		connCl.writeQueue <- json
+	if err := connCl.queuePayload(pl); err != nil && connCl != nil && connCl.operator != nil && connCl.operator.exhaust != nil {
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelWarn, Kind: KindInternalError, Instance: connCl.instanceName, Msg: "Failed to queue payload", Err: err.Error()})
+	}
+}
 
+func (connCl *ConnectedClient) queuePayload(pl Payload) error {
+	if connCl == nil || connCl.connection == nil || connCl.died || connCl.writeQueue == nil {
+		return fmt.Errorf("client is not connected")
+	}
+
+	json, err := pl.toMsgPak()
+	if err != nil {
+		return fmt.Errorf("encode payload: %w", err)
+	}
+
+	select {
+	case connCl.writeQueue <- json:
+		return nil
+	default:
+		return fmt.Errorf("write queue full")
 	}
 }
 
@@ -272,10 +311,16 @@ func (connCl *ConnectedClient) IsListening(subjectName string) bool {
 * Client bağlantısını sonlandırır
  */
 func (connCl *ConnectedClient) Die() {
-	if connCl.connection != nil && !connCl.died {
-		defer connCl.operator.removeConnectedClient(connCl.instanceName)
-		defer connCl.connection.Close()
-		connCl.died = true
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosed, Instance: connCl.instanceName, Msg: "Client has been closed"})
+	if connCl == nil || connCl.connection == nil || connCl.died {
+		return
 	}
+
+	defer connCl.connection.Close()
+	if connCl.operator != nil {
+		defer connCl.operator.removeConnectedClient(connCl.instanceName)
+		if connCl.operator.exhaust != nil {
+			defer connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelInfo, Kind: KindClientClosed, Instance: connCl.instanceName, Msg: "Client has been closed"})
+		}
+	}
+	connCl.died = true
 }

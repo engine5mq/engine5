@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "consumption_timeout": 0,
+      "on_consumption_timeout": "keep",
+      "event_subject_key": {
+        "regex": "postral\/.*"
+      },
+      "instance_group": "tetakent-postral-payment",
+      "instance_name": "*",
+      "try_after": 1800,
+      "try_count": 20,
+      "remove_successful_timeout": 30,
+      "remove_failed_timeout": 0
+    }
+  ],
+  "request_rules": [
+    {
+      "request_subject_key": {
+        "regex": "postral\/.*"
+      },
+      "remove_timeout": 86400
+    }
+  ]
+}

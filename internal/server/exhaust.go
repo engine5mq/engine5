@@ -26,10 +26,9 @@ dağıtır. Dağıtım ayrı bir goroutine'de yapılır ve kuyruk dolduğunda ol
 DÜŞÜRÜLÜR; böylece loglama, mesaj broker'ın hot path'ini asla bloklamaz.
 */
 type Exhaust struct {
-	sinks          []Sink
-	queue          chan ExhaustEvent
-	includeContent bool
-	tap            *TapSink
+	sinks []Sink
+	queue chan ExhaustEvent
+	tap   *TapSink
 }
 
 const exhaustContentMasked = "[hidden]"
@@ -40,7 +39,7 @@ const exhaustContentMasked = "[hidden]"
 //	E5_LOG_LEVEL                 DEBUG | INFO | WARN | ERROR | OFF
 //	                             (varsayılan: dev=DEBUG, prod=OFF — prod'da konsola basmaz)
 //	E5_LOG_FORMAT                text | json  (varsayılan: dev=text, prod=json)
-//	E5_EXHAUST_INCLUDE_CONTENT   true | false (varsayılan: false — hassas veri maskelenir)
+//	E5_EXHAUST_INCLUDE_CONTENT   true | false (varsayılan: false — konsolda hassas veri maskelenir)
 //	E5_EXHAUST_ENABLE            true | false (varsayılan: false — egzoz tap portunu açar)
 //	E5_EXHAUST_PORT              tap portu     (varsayılan: 3536)
 //	E5_EXHAUST_KEY               tap ortak anahtarı (boşsa anahtar doğrulaması yok)
@@ -56,8 +55,7 @@ func NewExhaustFromEnv() *Exhaust {
 	}
 
 	ex := &Exhaust{
-		queue:          make(chan ExhaustEvent, 1024),
-		includeContent: serverCfg.Exhaust.IncludeContent,
+		queue: make(chan ExhaustEvent, 1024),
 	}
 
 	levelStr := defaultLevel
@@ -71,7 +69,9 @@ func NewExhaustFromEnv() *Exhaust {
 			format = serverCfg.Exhaust.LogFormat
 		}
 		format = strings.ToLower(format)
-		ex.sinks = append(ex.sinks, newConsoleSink(parseLevel(levelStr), format))
+		console := newConsoleSink(parseLevel(levelStr), format)
+		console.includeContent = serverCfg.Exhaust.IncludeContent
+		ex.sinks = append(ex.sinks, console)
 	}
 
 	// Egzoz çıkışı (Yol B): etkinse TapSink oluştur. Sunucu, Serve'i
@@ -112,9 +112,6 @@ func (e *Exhaust) Emit(ev ExhaustEvent) {
 	if ev.Time.IsZero() {
 		ev.Time = time.Now()
 	}
-	if !e.includeContent && ev.Content != "" {
-		ev.Content = exhaustContentMasked
-	}
 	select {
 	case e.queue <- ev:
 	default:
@@ -143,13 +140,19 @@ func parseLevel(s string) slog.Level {
 	}
 }
 
+/**
+-------------
+CONSOLE SINK
+-------------
+*/
 /*
 ConsoleSink, olayları slog ile stdout'a yazar. Kendi minimum seviyesine
 göre filtreler.
 */
 type ConsoleSink struct {
-	logger   *slog.Logger
-	minLevel slog.Level
+	logger         *slog.Logger
+	minLevel       slog.Level
+	includeContent bool
 }
 
 func newConsoleSink(minLevel slog.Level, format string) *ConsoleSink {
@@ -166,6 +169,9 @@ func newConsoleSink(minLevel slog.Level, format string) *ConsoleSink {
 func (c *ConsoleSink) Write(ev ExhaustEvent) {
 	if ev.Level < c.minLevel {
 		return
+	}
+	if !c.includeContent && ev.Content != "" {
+		ev.Content = exhaustContentMasked
 	}
 	attrs := make([]any, 0, 12)
 	attrs = append(attrs, "kind", ev.Kind)
