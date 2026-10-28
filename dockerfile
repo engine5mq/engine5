@@ -1,7 +1,12 @@
+# syntax=docker/dockerfile:1
+
 ## Argümanlar
 # Arch: ARM ya da x86 (buildx tarafından --platform ile otomatik set edilir)
-
-# syntax=docker/dockerfile:1
+# VERSION: image sürümü (release.env -> IMAGE_TAG, build-push-docker.sh tarafından --build-arg ile geçilir)
+#
+## Target'lar
+#   docker buildx build --target engine5 ...  -> broker (varsayılan, son stage)
+#   docker buildx build --target aes ...      -> AES servisi
 
 # BUILDPLATFORM: derlemenin yapıldığı host platformu (örn. linux/amd64)
 # TARGETOS / TARGETARCH: hedeflenen platform (örn. linux/arm64), buildx tarafından otomatik doldurulur
@@ -36,13 +41,19 @@ COPY cmd ./cmd
 COPY internal ./internal
 
 # Build with security flags (TARGETOS/TARGETARCH buildx tarafından set edilir, örn: linux/amd64, linux/arm64, linux/arm/v7)
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} go build \
-    -a -installsuffix cgo \
-    -ldflags='-w -s -extldflags "-static"' \
-    -o /engine5 ./cmd/engine5
+RUN for app in engine5 aes; do \
+        CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} go build \
+        -a -installsuffix cgo \
+        -ldflags='-w -s -extldflags "-static"' \
+        -o /out/${app} ./cmd/${app} || exit 1; \
+    done
 
-# Production stage
-FROM scratch
+# Ortak çalışma zamanı katmanı
+FROM scratch AS runtime-base
+
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/engine5mq/engine5"
 
 # Copy CA certificates for TLS
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
@@ -53,8 +64,24 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # Copy user info for non-root execution
 COPY --from=builder /etc/passwd /etc/passwd
 
+# AES stage
+FROM runtime-base AS aes
+
+COPY --from=builder /out/aes /aes
+
+# Varsayılan kurallar; production'da /config/aes.rules.json volume ile override edilmeli
+COPY --chown=engine5user aes.rules.example.json /config/aes.rules.json
+ENV E5_AES_RULES_FILE=/config/aes.rules.json
+
+USER engine5user
+
+CMD ["/aes"]
+
+# Engine5 (broker) stage - target belirtilmezse bu image üretilir
+FROM runtime-base AS engine5
+
 # Copy the binary
-COPY --from=builder /engine5 /engine5
+COPY --from=builder /out/engine5 /engine5
 
 # Create directory for certificates
 # RUN mkdir -p /app/certs
