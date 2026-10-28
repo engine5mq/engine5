@@ -34,6 +34,7 @@ type TapEvent struct {
 	Content           string    `json:"content"`
 	Err               string    `json:"err"`
 	Msg               string    `json:"msg"`
+	IsError           bool      `json:"isError"`
 }
 
 type ConnectionInfo struct {

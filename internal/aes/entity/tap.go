@@ -22,6 +22,8 @@ type AesEventTap struct {
 	Err     string `json:"err,omitempty"`
 	// Msg, olaya eşlik eden okunabilir kısa açıklamadır.
 	Msg string `json:"msg,omitempty"`
+	// IsError, RESPONSE olaylarında yanıtın hata olarak işaretlendiğini belirtir.
+	IsError bool `json:"isError,omitempty"`
 }
 
 type AesDelivery struct {
@@ -57,6 +59,7 @@ func FromSqlRow(row *sql.Row) (interface{}, error) {
 		&aet.Content,
 		&aet.Err,
 		&aet.Msg,
+		&aet.IsError,
 	)
 	if err != nil {
 		return nil, err
@@ -86,6 +89,7 @@ func (aet AesEventTap) KeyValuePairs() []e5dbase.KeyValuePair {
 		{Key: "content", Value: aet.Content},
 		{Key: "err", Value: aet.Err},
 		{Key: "msg", Value: aet.Msg},
+		{Key: "is_error", Value: aet.IsError},
 	}
 }
 
@@ -158,6 +162,12 @@ func AesEventTapTableDefinition() e5dbase.TableDefinition {
 			{
 				Name: "msg",
 				Type: "mediumtext",
+			},
+			{
+				Name:         "is_error",
+				Type:         "boolean",
+				IsNotNull:    true,
+				DefaultValue: 0,
 			},
 		},
 	}

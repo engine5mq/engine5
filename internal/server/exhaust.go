@@ -193,6 +193,9 @@ func (c *ConsoleSink) Write(ev ExhaustEvent) {
 	if ev.Content != "" {
 		attrs = append(attrs, "content", ev.Content)
 	}
+	if ev.IsError {
+		attrs = append(attrs, "isError", true)
+	}
 	if ev.Err != "" {
 		attrs = append(attrs, "err", ev.Err)
 	}

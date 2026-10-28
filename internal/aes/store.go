@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 type Store struct {
 	db     *sql.DB
@@ -27,13 +27,17 @@ func NewStore(manager *e5dbase.DatabaseManager) *Store {
 
 func (s *Store) Init(ctx context.Context) error {
 	if s.driver != "mysql" && s.driver != "sqlite3" {
-		return fmt.Errorf("AES schema v1 supports mysql (sqlite3 for tests), got %q", s.driver)
+		return fmt.Errorf("AES schema supports mysql (sqlite3 for tests), got %q", s.driver)
 	}
 	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS aes_schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("create AES version table: %w", err)
 	}
-	if err := s.CheckVersion(ctx); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
+	currentVersion, err := s.readVersion(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("read AES schema version: %w", err)
+	}
+	if err == nil && (currentVersion < 1 || currentVersion > SchemaVersion) {
+		return fmt.Errorf("unsupported AES schema version %d; expected %d", currentVersion, SchemaVersion)
 	}
 	definition := entity.AesEventTapTableDefinition()
 	// AES assigns UUIDs itself; database-specific UUID defaults are unnecessary.
@@ -90,8 +94,10 @@ func (s *Store) Init(ctx context.Context) error {
 			}
 		}
 	}
-	var version int
-	err := s.db.QueryRowContext(ctx, `SELECT version FROM aes_schema_version WHERE id = 1`).Scan(&version)
+	if err := s.ensureIsErrorColumn(ctx); err != nil {
+		return fmt.Errorf("migrate AES tap table: %w", err)
+	}
+	version, err := s.readVersion(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = s.db.ExecContext(ctx, `INSERT INTO aes_schema_version (id, version) VALUES (1, ?)`, SchemaVersion)
 		return err
@@ -100,15 +106,46 @@ func (s *Store) Init(ctx context.Context) error {
 		return err
 	}
 	if version != SchemaVersion {
-		return fmt.Errorf("unsupported AES schema version %d; expected %d", version, SchemaVersion)
+		_, err = s.db.ExecContext(ctx, `UPDATE aes_schema_version SET version = ? WHERE id = 1`, SchemaVersion)
+		return err
 	}
 	return nil
 }
 
-func (s *Store) CheckVersion(ctx context.Context) error {
+func (s *Store) readVersion(ctx context.Context) (int, error) {
 	var version int
-	if err := s.db.QueryRowContext(ctx, `SELECT version FROM aes_schema_version WHERE id = 1`).Scan(&version); err != nil {
+	err := s.db.QueryRowContext(ctx, `SELECT version FROM aes_schema_version WHERE id = 1`).Scan(&version)
+	return version, err
+}
+
+// ensureIsErrorColumn adds is_error to tap tables created by schema v1.
+func (s *Store) ensureIsErrorColumn(ctx context.Context) error {
+	var count int
+	var err error
+	if s.driver == "sqlite3" {
+		err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('aes_event_tap') WHERE name = 'is_error'`).Scan(&count)
+	} else {
+		err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns
+			WHERE table_schema = DATABASE() AND table_name = 'aes_event_tap' AND column_name = 'is_error'`).Scan(&count)
+	}
+	if err != nil || count > 0 {
+		return err
+	}
+	columnType := "BOOLEAN"
+	if s.driver == "sqlite3" {
+		columnType = "INTEGER"
+	}
+	_, err = s.db.ExecContext(ctx, `ALTER TABLE aes_event_tap ADD COLUMN is_error `+columnType+` NOT NULL DEFAULT 0`)
+	return err
+}
+
+func (s *Store) CheckVersion(ctx context.Context) error {
+	version, err := s.readVersion(ctx)
+	if err != nil {
 		return fmt.Errorf("read AES schema version: %w", err)
+	}
+	if version < SchemaVersion {
+		return fmt.Errorf("AES schema version %d is outdated; expected %d (enable E5_AES_DB_GENERATE_IF_NOT_EXIST to migrate)", version, SchemaVersion)
 	}
 	if version != SchemaVersion {
 		return fmt.Errorf("unsupported AES schema version %d; expected %d", version, SchemaVersion)
@@ -175,10 +212,10 @@ func addAttempt(ctx context.Context, tx *sql.Tx, d *entity.AesDelivery) error {
 
 func insertTap(ctx context.Context, tx *sql.Tx, ev TapEvent) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO aes_event_tap
-		(id, time, level, kind, instance, instance_group, subject, message_id, remote, content, err, msg)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(id, time, level, kind, instance, instance_group, subject, message_id, remote, content, err, msg, is_error)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		uuid.NewString(), ev.Time.UTC(), ev.Level, ev.Kind, ev.Instance, ev.Group,
-		ev.Subject, ev.MessageId, ev.Remote, ev.Content, ev.Err, ev.Msg)
+		ev.Subject, ev.MessageId, ev.Remote, ev.Content, ev.Err, ev.Msg, ev.IsError)
 	return err
 }
 

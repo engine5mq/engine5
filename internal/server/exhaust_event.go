@@ -26,6 +26,8 @@ type ExhaustEvent struct {
 	Err     string `json:"err,omitempty"`
 	// Msg, olaya eşlik eden okunabilir kısa açıklamadır.
 	Msg string `json:"msg,omitempty"`
+	// IsError, RESPONSE olaylarında yanıtın hata olarak işaretlendiğini belirtir.
+	IsError bool `json:"isError,omitempty"`
 }
 
 // Exhaust olay türleri (Kind). Dışarıdaki dinleyiciler bu sabitlere göre

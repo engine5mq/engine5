@@ -147,17 +147,18 @@ SQLite yalnızca izole otomatik testlerde kullanılır.
 
 `E5_AES_DB_GENERATE_IF_NOT_EXIST=true` şu tabloları oluşturur:
 
-- `aes_event_tap`: mevcut olay logları.
+- `aes_event_tap`: mevcut olay logları. `is_error` kolonu, `RESPONSE_RECEIVED`/`RESPONSE_DELIVERED`
+  kayıtlarında yanıtın `isError=true` ile gönderildiğini belirtir (varsayılan `0`).
 - `aes_delivery`: body, durum, retry sayacı, zamanlar ve policy snapshot.
 - `aes_attempt`: attempt message ID → delivery eşleştirmesi.
 - `aes_request`: yalnızca saklanacak request'lerin subject, süre ve deadline bilgileri.
-- `aes_schema_version`: tek satır, `id=1`, `version=1`.
+- `aes_schema_version`: tek satır, `id=1`, `version=2`.
 
-İlk release için migration zinciri yoktur. Başka şema sürümü kabul edilmez.
-Otomatik oluşturma kapalıysa mevcut sürüm tablosu doğrulanır.
-Mevcut v1 kuruluma yeni `aes_request` tablosunu eklemek için
-`E5_AES_DB_GENERATE_IF_NOT_EXIST=true` ile bir kez başlatın. Şema sürümü ilk
-release kapsamındaki `1` olarak kalır; migration zinciri eklenmez.
+Desteklenmeyen (daha yeni) şema sürümleri reddedilir. Otomatik oluşturma
+kapalıysa mevcut sürüm tablosu doğrulanır ve eski sürüm (`1`) hata verir.
+Mevcut v1 kurulumu `E5_AES_DB_GENERATE_IF_NOT_EXIST=true` ile bir kez
+başlatın: eksik tablolar (`aes_request`) oluşturulur, `aes_event_tap` tablosuna
+`is_error` kolonu (`NOT NULL DEFAULT 0`) eklenir ve sürüm `2` olarak güncellenir.
 
 ## Retry protokolü ve temizleme
 

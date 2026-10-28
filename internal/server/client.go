@@ -159,7 +159,7 @@ func (connCl *ConnectedClient) ReviewPayload(pl Payload) {
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})
 
 	case CtResponse:
-		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseReceived, Instance: connCl.instanceName, MessageId: pl.ResponseOfMessageId, Content: pl.Content, Msg: "Client responded a request"})
+		connCl.operator.exhaust.Emit(ExhaustEvent{Level: slog.LevelDebug, Kind: KindResponseReceived, Instance: connCl.instanceName, MessageId: pl.ResponseOfMessageId, Content: pl.Content, IsError: pl.IsError, Msg: "Client responded a request"})
 		msg := MessageFromPayload(pl)
 		connCl.operator.respondRequest(msg)
 		connCl.Write(Payload{Command: CtRecieved, MessageId: msg.id, Subject: msg.targetSubjectName})

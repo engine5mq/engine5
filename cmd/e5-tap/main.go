@@ -35,6 +35,7 @@ type tapEvent struct {
 	Content   string    `json:"content"`
 	Err       string    `json:"err"`
 	Msg       string    `json:"msg"`
+	IsError   bool      `json:"isError"`
 }
 
 func main() {
@@ -139,6 +140,9 @@ func format(ev tapEvent) string {
 	writeKV(&b, "remote", ev.Remote)
 	writeKV(&b, "content", ev.Content)
 	writeKV(&b, "err", ev.Err)
+	if ev.IsError {
+		writeKV(&b, "isError", "true")
+	}
 
 	if ev.Msg != "" {
 		b.WriteString("  ")

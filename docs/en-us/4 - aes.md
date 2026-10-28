@@ -183,25 +183,26 @@ TLS settings must match each server port; certificate verification is not
 skipped. Tap carries the original body. `E5_EXHAUST_INCLUDE_CONTENT` controls
 **console-only** masking and does not affect the body stored by AES.
 
-Schema v1 uses MySQL: `E5_AES_DB_DRIVER=mysql`, default port `3306`.
+The AES schema uses MySQL: `E5_AES_DB_DRIVER=mysql`, default port `3306`.
 Other `E5_AES_DB_*` connection settings remain available. The former PostgreSQL
 default lacked an implemented driver/DSN and is not supported. SQLite is used
 only in isolated automated tests.
 
 With `E5_AES_DB_GENERATE_IF_NOT_EXIST=true`, AES creates:
 
-- `aes_event_tap`: event logs.
+- `aes_event_tap`: event logs. The `is_error` column marks `RESPONSE_RECEIVED`/`RESPONSE_DELIVERED`
+  rows whose response was sent with `isError=true` (default `0`).
 - `aes_delivery`: body, state, retry counter, timestamps and policy snapshot.
 - `aes_attempt`: attempt message ID to delivery mapping.
 - `aes_request`: subject, retention timeout and deadline for selected requests only.
-- `aes_schema_version`: one row, `id=1`, `version=1`.
+- `aes_schema_version`: one row, `id=1`, `version=2`.
 
-There is no migration chain in the first release. Unsupported schema versions
-are rejected. When automatic creation is disabled, AES checks the existing
-version table.
+Unsupported (newer) schema versions are rejected. When automatic creation is
+disabled, AES checks the existing version table and rejects outdated version `1`.
 For an existing v1 installation, start once with
-`E5_AES_DB_GENERATE_IF_NOT_EXIST=true` to create `aes_request`. The schema remains
-version `1` for the first release; no migration chain is introduced.
+`E5_AES_DB_GENERATE_IF_NOT_EXIST=true`: missing tables (`aes_request`) are created,
+the `is_error` column (`NOT NULL DEFAULT 0`) is added to `aes_event_tap`, and the
+version is updated to `2`.
 
 ## Retry protocol and cleanup
 

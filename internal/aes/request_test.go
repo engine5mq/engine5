@@ -252,3 +252,32 @@ func TestConcurrentRequestIngestionAndCleanup(t *testing.T) {
 		t.Fatal("concurrent request retention did not clean up")
 	}
 }
+
+func TestRequestRetentionStoresResponseIsError(t *testing.T) {
+	f := newFixture(t, "")
+	setRequestRules(t, f, `[{"request_subject_key":{"regex":"^postral/"},"remove_timeout":30}]`)
+	f.requestEvent("REQUEST_RECEIVED", "request", "postral/payment-channel/init")
+	if err := f.processor.Handle(context.Background(), TapEvent{
+		Kind: "RESPONSE_RECEIVED", MessageId: "request", Content: "failed", Level: "DEBUG", IsError: true,
+	}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	f.requestEvent("RESPONSE_DELIVERED", "request", "")
+	rows, err := f.store.db.Query(`SELECT kind, is_error FROM aes_event_tap WHERE message_id = 'request'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string]bool{}
+	for rows.Next() {
+		var kind string
+		var isError bool
+		if err := rows.Scan(&kind, &isError); err != nil {
+			t.Fatal(err)
+		}
+		got[kind] = isError
+	}
+	if !got["RESPONSE_RECEIVED"] || got["RESPONSE_DELIVERED"] || got["REQUEST_RECEIVED"] {
+		t.Fatalf("unexpected is_error mapping: %v", got)
+	}
+}

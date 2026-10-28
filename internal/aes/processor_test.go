@@ -331,7 +331,7 @@ func TestSchemaVersion(t *testing.T) {
 	if f.count("aes_schema_version") != 1 {
 		t.Fatal("expected one version record")
 	}
-	if _, err := f.store.db.Exec(`UPDATE aes_schema_version SET version = 2`); err != nil {
+	if _, err := f.store.db.Exec(`UPDATE aes_schema_version SET version = ?`, SchemaVersion+1); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.store.CheckVersion(context.Background()); err == nil {
@@ -339,6 +339,38 @@ func TestSchemaVersion(t *testing.T) {
 	}
 	if err := f.store.Init(context.Background()); err == nil {
 		t.Fatal("schema init accepted unsupported version")
+	}
+}
+
+func TestSchemaMigratesV1TapTable(t *testing.T) {
+	f := newFixture(t, "")
+	for _, query := range []string{
+		`DROP TABLE aes_event_tap`,
+		`CREATE TABLE aes_event_tap (id VARCHAR(36) PRIMARY KEY, time TEXT NOT NULL, level VARCHAR(32) NOT NULL,
+			kind VARCHAR(64) NOT NULL, instance VARCHAR(128), instance_group VARCHAR(128), subject VARCHAR(255),
+			message_id VARCHAR(128), remote VARCHAR(255), content longtext, err mediumtext, msg mediumtext)`,
+		`INSERT INTO aes_event_tap (id, time, level, kind) VALUES ('old', '2026-01-01', 'INFO', 'SERVER_START')`,
+		`UPDATE aes_schema_version SET version = 1`,
+	} {
+		if _, err := f.store.db.Exec(query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.store.CheckVersion(context.Background()); err == nil {
+		t.Fatal("outdated schema version accepted without migration")
+	}
+	if err := f.store.Init(context.Background()); err != nil {
+		t.Fatal("v1 migration failed:", err)
+	}
+	if err := f.store.CheckVersion(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var isError bool
+	if err := f.store.db.QueryRow(`SELECT is_error FROM aes_event_tap WHERE id = 'old'`).Scan(&isError); err != nil || isError {
+		t.Fatal("existing tap row not defaulted to is_error=false:", err)
+	}
+	if err := f.store.Init(context.Background()); err != nil {
+		t.Fatal("migration not idempotent:", err)
 	}
 }
 

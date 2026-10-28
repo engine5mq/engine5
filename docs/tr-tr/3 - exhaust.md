@@ -95,6 +95,9 @@ Her olay tek satır JSON'dur. Alanlar:
 }
 ```
 
+`RESPONSE_RECEIVED` / `RESPONSE_DELIVERED` olaylarında, yanıt `isError=true`
+ile gönderildiyse olaya `"isError": true` alanı eklenir (false ise alan yazılmaz).
+
 ### Olay türleri (`kind`)
 
 | Kind | Anlamı |

@@ -14,7 +14,7 @@ func validateDBDriver(dbDriver string) error {
 	case "":
 		return fmt.Errorf("database driver is not specified in the configuration")
 	default:
-		return fmt.Errorf("unsupported AES database driver %q (schema v1 requires mysql)", dbDriver)
+		return fmt.Errorf("unsupported AES database driver %q (AES schema requires mysql)", dbDriver)
 	}
 }
 
